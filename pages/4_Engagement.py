@@ -11,7 +11,7 @@ df = utils.load_data()
 if not df.empty:
     # --- DATA AGGREGATION ---
     # Group by Position Level to find averages
-    agg_df = df.groupby('positionLevels', observed=True).agg({
+    agg_df = df.groupby('positionLevels').agg({
         'metadata_totalNumberOfView': 'mean',
         'metadata_totalNumberJobApplication': 'mean',
         'title': 'count'  # We count jobs to size the bubbles
