@@ -11,4 +11,5 @@
 ## How to Run Application
 * Run command: streamlit run app.py
 
-## Deployed version in Streamlit Cloud: https://ntu-sctp-m1-capstone-ian.streamlit.app/
+## Deployed version in Streamlit Cloud: 
+https://ntu-sctp-m1-capstone-ian.streamlit.app/
