@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import utils
 
 st.title("🏢 Market Composition")
-st.subheader("Slide 2: Industry & Seniority Breakdown")
+st.subheader("Slide 2: Job Position Breakdown")
 
 df = utils.load_data()
 
