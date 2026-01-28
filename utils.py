@@ -3,28 +3,42 @@ import pandas as pd
 import json
 
 @st.cache_data
-def load_data():
+def load_data(filepath="data/SGJobData.csv.xz"):
     """
     Loads the data from the compressed CSV.
     Use caching, this runs only ONCE.
     Subsequent calls return the data from memory instantly.
     """
     try:
-        # Load compressed XZ file directly
-        df = pd.read_csv('data/SGJobData.csv.xz', compression='xz')
-
-        # Apply the function to the 'categories' column to create 'category_name'
-        df['category_name'] = df['categories'].apply(extract_category_name)
-
-        # --- CLEANING STEP ---
-        # Keep rows where salary is greater than 0 AND less than or equal to 40,000
-        df = df[(df['average_salary'] > 0) & (df['average_salary'] <= 40000)]
-
-        return df
-    
+        # Load csv file
+        df = pd.read_csv(filepath)
     except FileNotFoundError:
-        st.error("File not found! Please ensure 'data/SGJobData.csv.xz' exists.")
         return pd.DataFrame()
+
+    # Apply the function to the 'categories' column to create 'category_name'
+    df['category_name'] = df['categories'].apply(extract_category_name)
+
+    # --- CLEANING STEP ---
+    # Keep rows where salary is greater than 0 AND less than or equal to 40,000
+    df = df[(df['average_salary'] > 0) & (df['average_salary'] <= 40000)]
+
+    # Add Competition Metrics
+    df['competition_ratio'] = df.apply(
+        lambda x: x['metadata_totalNumberJobApplication'] / x['numberOfVacancies'] 
+        if x['numberOfVacancies'] > 0 else 0, axis=1
+    )
+
+    # Add Conversion Metrics
+    df['conversion_rate'] = df.apply(
+        lambda x: (x['metadata_totalNumberJobApplication'] / x['metadata_totalNumberOfView']) * 100 
+        if x['metadata_totalNumberOfView'] > 0 else 0, axis=1
+    )
+
+    # Add Volatility Metrics
+    df['is_repost'] = df['metadata_repostCount'].apply(
+        lambda x: 'Repost' if x > 0 else 'Fresh Post')
+    return df
+    
     
 # Define a function to extract the category name from the JSON string
 def extract_category_name(category_json):
