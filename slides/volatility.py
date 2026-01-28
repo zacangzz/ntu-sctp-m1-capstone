@@ -30,6 +30,6 @@ def render(df):
             st.warning("Repost data not available.")
             
     with col2:
-        st.subheader("Key Takeaways")
+        st.subheader("Analysis Points")
         st.markdown("• **Churn:** A large slice for 'Reposts' suggests difficulty in filling roles.")
         st.markdown("• **Stagnation:** Persistent reposts often indicate a disconnect between employer expectations and market reality.")
