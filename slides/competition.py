@@ -19,7 +19,7 @@ def render(df):
             x='competition_ratio', 
             palette='magma', 
             orient='h',
-            ax=ax
+            ax=ax, hue='title', legend=False
         )
         ax.set_title("Top 10 Roles by Applicants per Vacancy")
         ax.set_xlabel("Average Applicants per Role")
