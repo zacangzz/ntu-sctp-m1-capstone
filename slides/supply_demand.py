@@ -86,14 +86,10 @@ def render(df):
              st.markdown(f"**📉 Lowest Competition in '{highest_supply_gap['category_name']}'**")
              st.caption("This sector has the fewest applicants per role relative to others.")
 
-        st.markdown("---")
-
         # Dynamic Insight 2: High Competition (High Demand, Low Supply)
         st.markdown(f"**🔥 High Competition in '{highest_demand_gap['category_name']}'**")
         st.caption(f"Applications exceed vacancies by {int(highest_demand_gap['gap']):,}. This is an **Employer's Market**.")
-        
-        st.markdown("---")
-        
+                
         # General Observation
         st.markdown("**💡 Strategic Note**")
         st.caption("Large gaps between the Red Line (Interest) and Blue Bars (Openings) indicate market inefficiency. Focus recruiting efforts where the Blue Bars are significantly higher.")
