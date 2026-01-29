@@ -1,15 +1,15 @@
 import streamlit as st
 import utils
-from slides import overview, supply_demand, competition, engagement, volatility, conclusion
+from slides import overview, supply_demand, competition, engagement, conclusion
 
 # --- Configuration Constants ---
 # Dictionary mapping display names to module references
 SLIDES = {
-    "1. Overview": overview,
-    "2. Supply vs. Demand": supply_demand,
-    "3. Competition Analysis": competition,
-    "4. Engagement Funnel": engagement,
-    "5. Conclusion": conclusion
+    "Overview": overview,
+    "Supply vs. Demand": supply_demand,
+    "Competition Analysis": competition,
+    "Engagement Funnel": engagement,
+    "Conclusion": conclusion
 }
 
 # Page Config
@@ -34,6 +34,5 @@ st.sidebar.title("Navigation")
 selection = st.sidebar.radio("Go to", list(SLIDES.keys()))
 
 # --- Main Rendering Logic ---
-# This replaces the long if/elif chain
 if selection in SLIDES:
     SLIDES[selection].render(df)

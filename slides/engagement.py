@@ -95,12 +95,8 @@ def render(df):
         st.markdown(f"**🚀 Executive Power:**")
         st.caption(f"**Senior Management** roles are outliers, generating the highest views ({senior_role['metadata_totalNumberOfView']:.0f}) and applications ({senior_role['metadata_totalNumberJobApplication']:.0f}) per post. High visibility correlates with high intent here.")
         
-        st.markdown("---")
-        
         st.markdown("**📉 The 'Junior' Squeeze:**")
         st.caption("Entry-level and Junior roles cluster at the bottom-left. Despite the large workforce size, individual postings receive significantly less engagement, suggesting market saturation.")
-        
-        st.markdown("---")
-        
+                
         st.markdown("**🎯 Efficiency Gap:**")
         st.caption("Most roles fall below the dashed 15% line. 'Middle Management' is the closest to bridging this gap, indicating a balanced supply/demand ratio.")
