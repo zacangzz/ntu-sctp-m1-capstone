@@ -34,9 +34,6 @@ def load_data(filepath="data/SGJobData.csv.xz"):
         if x['metadata_totalNumberOfView'] > 0 else 0, axis=1
     )
 
-    # Add Volatility Metrics
-    df['is_repost'] = df['metadata_repostCount'].apply(
-        lambda x: 'Repost' if x > 0 else 'Fresh Post')
     return df
     
     
