@@ -3,7 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 def render(df):
-    st.title("Executive Summary: 🇸🇬 Job Market Health")
+    st.title("🇸🇬 Job Market Health")
     st.markdown("A high-level snapshot of current market conditions.")
     
     # Top Level Metrics
@@ -28,7 +28,6 @@ def render(df):
         top_15_sectors = sector_dist.sort_values('numberOfVacancies', ascending=False).head(15)
         
         # Seaborn Plot
-        # Increase figure height slightly to accommodate 15 bars comfortably
         fig, ax = plt.subplots(figsize=(10, 7))
         
         # Switch to horizontal bar plot for better readability of 15 items

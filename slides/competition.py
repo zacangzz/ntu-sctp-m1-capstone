@@ -32,12 +32,8 @@ def render(df):
         st.markdown("**Salary Sensitivity:**")
         st.caption("High advertised salaries (e.g., General Manager >$16k) trigger the highest competition (>850 applicants/role).")
         
-        st.markdown("---")
-
         st.markdown("**Flexibility is King:**")
         st.caption("Keywords like 'Work From Home' and 'Part-Time' dominate the top list, indicating lifestyle benefits drive volume as much as pay.")
         
-        st.markdown("---")
-
         st.markdown("**Screening Bottleneck:**")
         st.caption("With 500+ applicants for Admin/Data Entry roles, manual review is impossible. Automated CV parsing is critical here.")
