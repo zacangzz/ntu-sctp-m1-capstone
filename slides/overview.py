@@ -8,7 +8,7 @@ def render(df):
     
     # Top Level Metrics
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Active Vacancies", f"{df['numberOfVacancies'].sum():,}")
+    m1.metric("Total Vacancies", f"{df['numberOfVacancies'].sum():,}")
     m2.metric("Total Applications", f"{df['metadata_totalNumberJobApplication'].sum():,}")
     m3.metric("Avg. Market Salary", f"${df['average_salary'].mean():,.0f}")
     

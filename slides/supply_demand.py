@@ -14,10 +14,10 @@ def render(df):
         agg = df.groupby('category_name')[['numberOfVacancies', 'metadata_totalNumberJobApplication']].sum().reset_index()
         
         # 2. Calculate Total Volume to find the "Top 15" most active sectors
-        agg['total_volume'] = agg['numberOfVacancies'] + agg['metadata_totalNumberJobApplication']
+        # agg['total_volume'] = agg['numberOfVacancies'] + agg['metadata_totalNumberJobApplication']
         
         # 3. Sort by volume and slice top 15 to remove clutter
-        top_15 = agg.sort_values('total_volume', ascending=False).head(15)
+        top_15 = agg.sort_values('numberOfVacancies', ascending=False).head(15)
         
         # 4. Calculate Gaps for Analysis Points
         # Gap > 0: More Apps than Jobs (Candidate Competition / Employer Market)
