@@ -48,7 +48,6 @@ env/
 .env.local
 
 # Data files
-*.csv
 *.xlsx
 *.xls
 
