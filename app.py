@@ -421,8 +421,7 @@ def main():
                 <div class="kpi-title">Total Vacancies</div>
                 <div class="kpi-value">{vac_total:,.0f}</div>
                 <div class="kpi-sub">
-                    <b>🏆 Top:</b> {vac_top}<br>
-                    <b>💰 Avg Sal:</b> ${vac_sal:,.0f}
+                    <b>🏆 Top:</b> {vac_top}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -434,8 +433,7 @@ def main():
                 <div class="kpi-title">Total Job Posted</div>
                 <div class="kpi-value">{post_total:,.0f}</div>
                 <div class="kpi-sub">
-                    <b>🏆 Top:</b> {post_top}<br>
-                    <b>💰 Avg Sal:</b> ${post_sal:,.0f}
+                    <b>🏆 Top:</b> {post_top}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -447,8 +445,7 @@ def main():
                 <div class="kpi-title">Total Job Views</div>
                 <div class="kpi-value">{view_total:,.0f}</div>
                 <div class="kpi-sub">
-                    <b>🏆 Top:</b> {view_top}<br>
-                    <b>💰 Avg Sal:</b> ${view_sal:,.0f}
+                    <b>🏆 Top:</b> {view_top}
                 </div>
             </div>
             """, unsafe_allow_html=True)
