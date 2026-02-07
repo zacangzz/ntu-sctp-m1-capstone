@@ -77,12 +77,58 @@ class Config:
 class DataProcessor:
     @staticmethod
     def clean_job_title(title):
-        if not isinstance(title, str): return "Unknown Title"
-        t = title.lower()
-        t = re.sub(r'\s*\(.*\)\s*|\s*\[.*\]\s*', ' ', t)
-        t = re.sub(r'\$?\d+(?:[.,]\d+)?(?:k|K)?\s*-\s*\$?\d+(?:[.,]\d+)?(?:k|K)?', '', t)
-        t = re.sub(r'\b\d+\b|\$', '', t)
-        return re.sub(r'\s+', ' ', t).strip()
+        """
+        Improved rule-based cleaning that preserves complete job titles
+        """
+        if not isinstance(title, str):
+            return "Unknown Title"
+        
+        # Remove location information (after | or -)
+        title = re.split(r'[-|]', title)[0].strip()
+        
+        # Remove salary information
+        title = re.sub(r'\$[\d,\.]+[kK]?', '', title)
+        title = re.sub(r'up to \$?[\d,\.]+[kK]?', '', title)
+        title = re.sub(r'basic \$?[\d,\.]+[kK]?', '', title)
+        
+        # Remove parentheses content (skills/requirements)
+        title = re.sub(r'\([^)]*\)', '', title)
+        
+        # Remove urgency markers
+        title = re.sub(r'urgent hiring!!!?', '', title, flags=re.IGNORECASE)
+        title = re.sub(r'immediate', '', title, flags=re.IGNORECASE)
+        
+        # Remove hashtags and extra symbols
+        title = re.sub(r'#\w+', '', title)
+        title = re.sub(r'[|/]', ' ', title)
+        
+        # Remove common noise words but keep important job title components
+        noise_words = {
+            'urgent', 'hiring', 'entry', 'level', 'immediate', 'available', 
+            'position', 'role', 'job', 'career', 'opportunity', 'full', 'time', 
+            'part', 'permanent', 'contract', 'temporary', 'up', 'to', '$',
+            'basic', 'salary', 'plus', 'commission', 'bonus', 'benefits', 'package'
+        }
+        
+        # Tokenize and clean, but be more conservative
+        words = title.lower().split()
+        meaningful_words = []
+        
+        for word in words:
+            word = word.strip('.,!?()[]{}:;"\'')
+            if (word.isalpha() and 
+                len(word) > 1 and 
+                word not in noise_words):
+                meaningful_words.append(word)
+        
+        # Reconstruct and capitalize properly
+        if meaningful_words:
+            cleaned_title = ' '.join(meaningful_words)
+            # Capitalize first letter of each word for job titles
+            cleaned_title = ' '.join(word.capitalize() for word in cleaned_title.split())
+            return cleaned_title
+        else:
+            return title.strip()
 
     @staticmethod
     def parse_categories(cat_str):
@@ -296,52 +342,182 @@ def main():
     # --- TAB 1: EXECUTIVE ---
     with tab1:
         st.subheader("High-Level Market Snapshot")
-        col1, col2, col3, col4 = st.columns(4)
+
+        # -----------------------------------------------------------
+        # 1. DATA PREPARATION (METRICS)
+        # -----------------------------------------------------------
         
-        total_vac = df['numberOfVacancies'].sum()
-        avg_sal = df['avg_salary'].mean()
-        top_sec = df['category_name'].value_counts().idxmax()
-        entry_share = (df[df['minimumYearsExperience'] <= 2].shape[0] / df.shape[0]) * 100
+        # 1.1 Ensure View Column Exists & is Numeric
+        view_col = 'metadata_totalNumberOfView'
         
-        col1.metric("Total Vacancies", f"{total_vac:,.0f}")
-        col2.metric("Market Avg Salary", f"${avg_sal:,.0f}")
-        col3.metric("Top Sector (by Vacancy Vol)", top_sec) 
-        col4.metric("Entry Level Accessible", f"{entry_share:.1f}%")
+        if view_col not in df.columns:
+            df[view_col] = 0 # Create dummy if missing
+            st.toast(f"⚠️ Column `{view_col}` not found. Views set to 0.", icon="ℹ️")
+        else:
+            # Force convert to numeric, turning errors/blanks into 0
+            df[view_col] = pd.to_numeric(df[view_col], errors='coerce').fillna(0)
+
+        # 1.2 HELPER: Calculate Stats for a specific metric
+        def get_kpi_stats(df, count_method='sum', value_col='numberOfVacancies'):
+            """
+            count_method: 'sum' (for vacancies/views) or 'count' (for job posts)
+            value_col: The column to sum (e.g., numberOfVacancies)
+            """
+            if count_method == 'sum':
+                total_val = df[value_col].sum()
+                # Top sector by sum of that value
+                top_sector = df.groupby('category_name')[value_col].sum().idxmax()
+                
+                # Weighted Average Salary (More accurate for Vacancies/Views)
+                if total_val > 0:
+                    avg_sal = (df['avg_salary'] * df[value_col]).sum() / total_val
+                else:
+                    avg_sal = 0
+            else: # 'count' (Job Posts)
+                total_val = len(df)
+                # Top sector by count of rows
+                top_sector = df['category_name'].value_counts().idxmax()
+                # Simple Average Salary
+                avg_sal = df['avg_salary'].mean()
+
+            return total_val, top_sector, avg_sal
+
+        # CALC 1: Total Vacancies
+        vac_total, vac_top, vac_sal = get_kpi_stats(df, 'sum', 'numberOfVacancies')
         
+        # CALC 2: Total Job Posted (Rows)
+        post_total, post_top, post_sal = get_kpi_stats(df, 'count', 'clean_title')
+        
+        # CALC 3: Total Job Views (Using metadata_totalNumberOfView)
+        view_total, view_top, view_sal = get_kpi_stats(df, 'sum', view_col)
+
+        # -----------------------------------------------------------
+        # 2. VISUALIZATION (CUSTOM CARDS)
+        # -----------------------------------------------------------
+        
+        st.markdown("""
+        <style>
+            .kpi-card {
+                background-color: #f8f9fa;
+                border-left: 5px solid #2E86C1;
+                padding: 15px;
+                border-radius: 5px;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+                margin-bottom: 10px;
+            }
+            .kpi-title { font-size: 14px; color: #666; font-weight: bold; text-transform: uppercase;}
+            .kpi-value { font-size: 28px; color: #2E86C1; font-weight: 800; margin: 5px 0;}
+            .kpi-sub { font-size: 13px; color: #444; margin-top: 5px; line-height: 1.4;}
+            .kpi-icon { font-size: 20px; float: right; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        kpi1, kpi2, kpi3 = st.columns(3)
+
+        with kpi1:
+            st.markdown(f"""
+            <div class="kpi-card">
+                <span class="kpi-icon">👥</span>
+                <div class="kpi-title">Total Vacancies</div>
+                <div class="kpi-value">{vac_total:,.0f}</div>
+                <div class="kpi-sub">
+                    <b>🏆 Top:</b> {vac_top}<br>
+                    <b>💰 Avg Sal:</b> ${vac_sal:,.0f}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with kpi2:
+            st.markdown(f"""
+            <div class="kpi-card">
+                <span class="kpi-icon">📝</span>
+                <div class="kpi-title">Total Job Posted</div>
+                <div class="kpi-value">{post_total:,.0f}</div>
+                <div class="kpi-sub">
+                    <b>🏆 Top:</b> {post_top}<br>
+                    <b>💰 Avg Sal:</b> ${post_sal:,.0f}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with kpi3:
+            st.markdown(f"""
+            <div class="kpi-card">
+                <span class="kpi-icon">👁️</span>
+                <div class="kpi-title">Total Job Views</div>
+                <div class="kpi-value">{view_total:,.0f}</div>
+                <div class="kpi-sub">
+                    <b>🏆 Top:</b> {view_top}<br>
+                    <b>💰 Avg Sal:</b> ${view_sal:,.0f}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
         st.divider()
-        st.markdown("#### 🏆 Top 10 Industry Sectors: Vacancy vs. Job Post Volume")
+
+        # -----------------------------------------------------------
+        # 3. DYNAMIC CHART (TOP 10 SECTORS)
+        # -----------------------------------------------------------
         
-        top_sectors = df.groupby('category_name').agg(
-            Vacancies=('numberOfVacancies', 'sum'),
-            Job_Postings=('category_name', 'count')
-        ).sort_values('Vacancies', ascending=False).head(10).reset_index()
-        
+        c_head, c_opt = st.columns([3, 1])
+        with c_head:
+            st.markdown("#### 📊 Top 10 Sectors Breakdown")
+        with c_opt:
+            chart_metric = st.selectbox(
+                "View By:", 
+                ["Vacancies", "Job Posts", "Job Views"],
+                index=0
+            )
+
+        # Logic to switch data based on selection
+        if chart_metric == "Vacancies":
+            metric_col = 'numberOfVacancies'
+            agg_func = 'sum'
+            bar_color = '#2E86C1' # Blue
+            x_label = 'Total Vacancies'
+        elif chart_metric == "Job Posts":
+            metric_col = 'category_name' # Just for counting
+            agg_func = 'count'
+            bar_color = '#28B463' # Green
+            x_label = 'Number of Posts'
+        else: # Job Views
+            metric_col = view_col # Use the metadata column
+            agg_func = 'sum'
+            bar_color = '#E67E22' # Orange
+            x_label = 'Total Views'
+
+        # Prepare Chart Data
+        if agg_func == 'sum':
+            top_sectors_chart = df.groupby('category_name')[metric_col].sum().sort_values(ascending=False).head(10).reset_index()
+            top_sectors_chart.columns = ['category_name', 'Value']
+        else:
+            top_sectors_chart = df['category_name'].value_counts().head(10).reset_index()
+            top_sectors_chart.columns = ['category_name', 'Value']
+
+        # Render Chart
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            y=top_sectors['category_name'],
-            x=top_sectors['Vacancies'],
-            name='Total Vacancies',
+            y=top_sectors_chart['category_name'],
+            x=top_sectors_chart['Value'],
             orientation='h',
-            marker_color='#2E86C1'
+            marker_color=bar_color,
+            text=top_sectors_chart['Value'],
+            texttemplate='%{text:.2s}',
+            textposition='outside'
         ))
-        fig.add_trace(go.Bar(
-            y=top_sectors['category_name'],
-            x=top_sectors['Job_Postings'],
-            name='Number of Job Ads',
-            orientation='h',
-            marker_color='#AED6F1'
-        ))
-        
+
         fig.update_layout(
-            barmode='group',
-            yaxis={'categoryorder':'total ascending', 'title': 'Sector'},
-            xaxis={'title': 'Count'},
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor='center')
+            yaxis={'categoryorder':'total ascending'},
+            xaxis={'title': x_label},
+            title=f"Top 10 Sectors by {chart_metric}",
+            height=500,
+            margin=dict(l=20, r=20, t=40, b=20)
         )
         st.plotly_chart(fig, use_container_width=True)
-        
-        f, i = InsightEngine.get_market_insights(df, 'numberOfVacancies', 'category_name')
-        render_findings_box(f, i)
+
+        # Insights Footer
+        # f, i = InsightEngine.get_market_insights(df, 'numberOfVacancies', 'category_name')
+        # render_findings_box(f, i)
 
     # --- TAB 2: DEMAND ---
     with tab2:
@@ -514,6 +690,9 @@ def main():
             display_df = sec_df.copy()
             if search_text:
                 display_df = display_df[display_df['clean_title'].str.contains(search_text, case=False)]
+            
+            # Remove duplicates based on clean_title
+            display_df = display_df.drop_duplicates(subset=['clean_title'], keep='first').reset_index(drop=True)
 
             rename_map = {
                 'clean_title': 'Job Title', 
@@ -532,7 +711,8 @@ def main():
                         "Avg Salary ($)",
                         format="$%d"
                     )
-                }
+                },
+                hide_index=True  # Hide the pandas index
             )
 
 if __name__ == "__main__":
