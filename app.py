@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 import json
 import re
 import os
-from datetime import datetime
 
 # ==========================================
 # 1. CONFIGURATION & STYLING
@@ -67,7 +66,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 class Config:
-    DATA_FILE = 'data/SGJobData.csv' 
+    DATA_FILE = 'data/SGJobData_opt.csv.xz'
     SKILL_FILE = 'data/skillset.csv'
     CACHE_TTL = 3600
 
@@ -76,149 +75,40 @@ class Config:
 # ==========================================
 class DataProcessor:
     @staticmethod
-    def clean_job_title(title):
-        """
-        Improved rule-based cleaning that preserves complete job titles
-        """
-        if not isinstance(title, str):
-            return "Unknown Title"
-        
-        # Remove location information (after | or -)
-        title = re.split(r'[-|]', title)[0].strip()
-        
-        # Remove salary information
-        title = re.sub(r'\$[\d,\.]+[kK]?', '', title)
-        title = re.sub(r'up to \$?[\d,\.]+[kK]?', '', title)
-        title = re.sub(r'basic \$?[\d,\.]+[kK]?', '', title)
-        
-        # Remove parentheses content (skills/requirements)
-        title = re.sub(r'\([^)]*\)', '', title)
-        
-        # Remove urgency markers
-        title = re.sub(r'urgent hiring!!!?', '', title, flags=re.IGNORECASE)
-        title = re.sub(r'immediate', '', title, flags=re.IGNORECASE)
-        
-        # Remove hashtags and extra symbols
-        title = re.sub(r'#\w+', '', title)
-        title = re.sub(r'[|/]', ' ', title)
-        
-        # Remove common noise words but keep important job title components
-        noise_words = {
-            'urgent', 'hiring', 'entry', 'level', 'immediate', 'available', 
-            'position', 'role', 'job', 'career', 'opportunity', 'full', 'time', 
-            'part', 'permanent', 'contract', 'temporary', 'up', 'to', '$',
-            'basic', 'salary', 'plus', 'commission', 'bonus', 'benefits', 'package'
-        }
-        
-        # Tokenize and clean, but be more conservative
-        words = title.lower().split()
-        meaningful_words = []
-        
-        for word in words:
-            word = word.strip('.,!?()[]{}:;"\'')
-            if (word.isalpha() and 
-                len(word) > 1 and 
-                word not in noise_words):
-                meaningful_words.append(word)
-        
-        # Reconstruct and capitalize properly
-        if meaningful_words:
-            cleaned_title = ' '.join(meaningful_words)
-            # Capitalize first letter of each word for job titles
-            cleaned_title = ' '.join(word.capitalize() for word in cleaned_title.split())
-            return cleaned_title
-        else:
-            return title.strip()
-
-    @staticmethod
-    def parse_categories(cat_str):
+    def _parse_categories(cat_str):
         try:
             if isinstance(cat_str, str):
                 return json.loads(cat_str.replace("'", '"'))
             return []
-        except:
+        except Exception:
             return []
 
     @staticmethod
-    def extract_category_name(val):
+    def _extract_category_name(val):
         if isinstance(val, dict):
             return val.get('category', val.get('name', str(val)))
         return str(val)
 
     @staticmethod
-    def remove_outliers(df, col):
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
-        return np.where(df[col] > upper_bound, upper_bound, 
-                        np.where(df[col] < lower_bound, lower_bound, df[col]))
-
-    @staticmethod
     @st.cache_data(ttl=Config.CACHE_TTL)
     def load_and_clean_data():
-        # 1. Load Data
-        if os.path.exists(Config.DATA_FILE):
-             df = pd.read_csv(Config.DATA_FILE)
-        elif os.path.exists(Config.DATA_FILE + '.xz'):
-             df = pd.read_csv(Config.DATA_FILE + '.xz')
-        else:
-            st.error(f"🚨 Data file not found at `{Config.DATA_FILE}`.")
+        if not os.path.exists(Config.DATA_FILE):
+            st.error(f"🚨 Data file not found. Run `python preprocess_data.py` to create `{Config.DATA_FILE}`.")
             st.stop()
-        
-        # 2. Drop rows with missing categories
-        df.dropna(subset=['categories'], inplace=True)
-        
-        # 3. Explode Categories
-        df['parsed_categories'] = df['categories'].apply(DataProcessor.parse_categories)
-        df_exploded = df.explode('parsed_categories')
-        df_exploded['category_name'] = df_exploded['parsed_categories'].apply(DataProcessor.extract_category_name)
-        
-        # 4. Clean Titles
-        df_exploded['clean_title'] = df_exploded['title'].apply(DataProcessor.clean_job_title)
-        
-        # 5. Type Conversion
-        numeric_cols = ['minimumYearsExperience', 'numberOfVacancies', 'salary_minimum', 'salary_maximum']
-        for col in numeric_cols:
-            if col in df_exploded.columns:
-                df_exploded[col] = pd.to_numeric(df_exploded[col], errors='coerce')
-        
-        df_exploded['numberOfVacancies'].fillna(1, inplace=True)
-        df_exploded['minimumYearsExperience'].fillna(0, inplace=True)
 
-        # 6. Salary Calculation
-        if 'salary_minimum' in df_exploded.columns and 'salary_maximum' in df_exploded.columns:
-            valid_salary = (df_exploded['salary_minimum'] > 0) & (df_exploded['salary_maximum'] > 0)
-            df_exploded = df_exploded[valid_salary]
-            df_exploded['avg_salary'] = (df_exploded['salary_minimum'] + df_exploded['salary_maximum']) / 2
-        else:
-            df_exploded['avg_salary'] = 0
+        df = pd.read_csv(Config.DATA_FILE, parse_dates=['posting_date', 'month_year'])
 
-        # 7. Outlier Handling
-        df_exploded['minimumYearsExperience'] = np.clip(df_exploded['minimumYearsExperience'], 0, 15)
-        if 'avg_salary' in df_exploded.columns and not df_exploded.empty:
-            df_exploded['avg_salary'] = DataProcessor.remove_outliers(df_exploded, 'avg_salary')
-            
-        # 8. Date Parsing
-        date_col = None
-        for col in ['metadata_newPostingDate', 'metadata_createdAt', 'postingDate']:
-            if col in df_exploded.columns:
-                date_col = col
-                break
-        
-        if date_col:
-            df_exploded['posting_date'] = pd.to_datetime(df_exploded[date_col], errors='coerce')
-            df_exploded['month_year'] = df_exploded['posting_date'].dt.to_period('M').dt.to_timestamp()
-            df_exploded.dropna(subset=['posting_date'], inplace=True)
+        # Explode categories (one row per job × category)
+        df['parsed_categories'] = df['categories'].apply(DataProcessor._parse_categories)
+        df = df.explode('parsed_categories')
+        df['category_name'] = df['parsed_categories'].apply(DataProcessor._extract_category_name)
 
-        # 9. Load Skillset
         if os.path.exists(Config.SKILL_FILE):
             skills_df = pd.read_csv(Config.SKILL_FILE)
         else:
             skills_df = pd.DataFrame()
 
-        return df_exploded, skills_df
+        return df, skills_df
 
 # ==========================================
 # 3. INSIGHT ENGINE
@@ -315,7 +205,7 @@ def render_findings_box(findings, insights):
 # ==========================================
 def main():
     # Load
-    with st.spinner("Loading and Cleansing Data..."):
+    with st.spinner("Loading Data..."):
         df, skills_df = DataProcessor.load_and_clean_data()
 
     # Verify Data Integrity
