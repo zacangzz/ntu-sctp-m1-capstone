@@ -10,7 +10,7 @@ import os
 # ==========================================
 # 1. CONFIGURATION & STYLING
 # ==========================================
-st.set_page_config(page_title="SG Job Market Intelligence for Curriculum Design", layout="wide", page_icon="📊")
+st.set_page_config(page_title="SG Job Market Dashboard for Curriculum Design", layout="wide", page_icon="📊")
 
 # Custom CSS with FORCED COLORS for visibility and Formatting
 st.markdown("""
@@ -149,7 +149,7 @@ def main():
     else:
         period_str = "Date Unavailable"
 
-    st.title("🎓 SG Job Market Intelligence for Curriculum Design")
+    st.title("🎓 SG Job Market Dashboard for Curriculum Design")
     st.markdown("Aligning Curriculum with Real-Time Market Structure")
     st.write(f"**Data Period:** {period_str}")
 
@@ -344,7 +344,7 @@ def main():
         
         with col2_1:
             # 1. Market Share of Hiring (Vacancies)
-            st.markdown("#### 1. Market Share of Hiring")
+            st.markdown("#### Market Share of Hiring")   
             st.caption("Which sectors have the highest volume of vacancies?")
             
             share_df = df.groupby('category')['num_vacancies'].sum().reset_index()
@@ -369,7 +369,7 @@ def main():
 
         with col2_2:
             # 2. Role Prevalence Index (Job Titles)
-            st.markdown("#### 2. Role Prevalence Index")
+            st.markdown("#### Role Prevalence Index")
             st.caption("Most frequently advertised job titles (Normalized 0-100)")
             
             # Add sector filter
@@ -399,7 +399,7 @@ def main():
             st.plotly_chart(fig_role, use_container_width=True, key="role_prevalence_chart")
 
         # 3. Demand Velocity (Time Series)
-        st.markdown("#### 3. Demand Velocity (Vacancy Growth)")
+        st.markdown("#### 📈 Demand Velocity (Vacancy Growth)")
         st.caption("Trend of vacancies over time. Steep lines = High Momentum.")
         
         # Aggregate by Month
@@ -425,60 +425,58 @@ def main():
         st.subheader("🛠️ Skill & Experience Analysis")
         st.markdown("Objective: Align the \"Level\" of training with market reality to ensure graduate ROI.")
         
-        # Prepare Pillar 2 Metrics
-        p2_metrics = df.groupby('category').agg({
-            'num_vacancies': 'sum',
-            'num_applications': 'sum',
-            'min_exp': 'mean',
-            'job_id': 'count'  # Count of posts
-        }).reset_index()
+        st.markdown("#### 1. Experience Distribution")
+        st.caption("Distribution of required experience levels across all sectors")
+        
+        exp_dist = df['min_exp'].value_counts().sort_index().reset_index()
+        exp_dist.columns = ['Experience (Years)', 'Count']
+        
+        fig_exp = px.bar(exp_dist, x='Experience (Years)', y='Count', 
+                       title="Required Experience Distribution")
+        st.plotly_chart(fig_exp, use_container_width=True, key="experience_distribution_chart")
 
-        # METRIC CALCULATIONS
-        # 1. Opportunity Score: Vacancies per year of experience required
-        # (High Score = Lots of jobs for little experience)
-        p2_metrics['opp_score'] = p2_metrics['num_vacancies'] / (p2_metrics['min_exp'] + 1)
+        # Seniority Pay-Scale, Experience Gate, Credential Depth
+        c3a, c3b, c3c = st.columns(3)
         
-        # 2. Competition Index: Applications per Vacancy
-        # (High Score = Harder to get)
-        p2_metrics['comp_index'] = p2_metrics.apply(
-            lambda x: x['num_applications'] / x['num_vacancies'] if x['num_vacancies'] > 0 else 0, 
-            axis=1
-        )
-
-        c3_1, c3_2, c3_3 = st.columns(3)
+        with c3a:
+            st.markdown("#### 2. Seniority Pay-Scale")
+            st.caption("Average salary by experience level (weighted by vacancies)")
+            pay_scale = df.groupby('exp_segment').apply(
+                lambda g: (g['average_salary'] * g['num_vacancies']).sum() / g['num_vacancies'].sum()
+            ).reset_index(name='avg_salary')
+            pay_scale = pay_scale.sort_values('exp_segment')
+            fig_pay = px.bar(pay_scale, x='exp_segment', y='avg_salary',
+                             labels={'exp_segment': 'Experience Level', 'avg_salary': 'Avg Salary (SGD)'},
+                             color='avg_salary', color_continuous_scale='Blues',
+                             title="Salary by Seniority")
+            fig_pay.update_layout(xaxis_tickangle=-45, showlegend=False)
+            st.plotly_chart(fig_pay, use_container_width=True, key="seniority_payscale_chart")
         
-        with c3_1:
-            st.markdown("#### 1. Experience Distribution")
-            st.caption("Distribution of required experience levels across all sectors")
-            
-            exp_dist = df['min_exp'].value_counts().sort_index().reset_index()
-            exp_dist.columns = ['Experience (Years)', 'Count']
-            
-            fig_exp = px.bar(exp_dist, x='Experience (Years)', y='Count', 
-                           title="Required Experience Distribution")
-            st.plotly_chart(fig_exp, use_container_width=True, key="experience_distribution_chart")
+        with c3b:
+            st.markdown("#### 3. The \"Experience Gate\"")
+            st.caption("Vacancies accessible at each experience tier")
+            gate_df = df.groupby('exp_segment')['num_vacancies'].sum().reset_index()
+            gate_df = gate_df.sort_values('exp_segment')
+            fig_gate = px.bar(gate_df, x='exp_segment', y='num_vacancies',
+                              labels={'exp_segment': 'Experience Level', 'num_vacancies': 'Vacancies'},
+                              color='num_vacancies', color_continuous_scale='Viridis',
+                              title="Market Access by Experience")
+            fig_gate.update_layout(xaxis_tickangle=-45, showlegend=False)
+            st.plotly_chart(fig_gate, use_container_width=True, key="experience_gate_chart")
         
-        with c3_2:
-            st.markdown("#### 2. Opportunity Score")
-            st.caption("Formula: Total Vacancies ÷ (Avg Min Exp + 1)")
-            
-            top_opp = p2_metrics.nlargest(10, 'opp_score')
-            fig_opp = px.bar(top_opp, x='opp_score', y='category', orientation='h',
-                             color='opp_score', color_continuous_scale='Teal',
-                             title="Highest Opportunity Sectors")
-            fig_opp.update_layout(yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_opp, use_container_width=True, key="opportunity_score_chart")
-        
-        with c3_3:
-            st.markdown("#### 3. Competition Index")
-            st.caption("Formula: Total Applications ÷ Total Vacancies")
-            
-            top_comp = p2_metrics.nlargest(10, 'comp_index')
-            fig_comp = px.bar(top_comp, x='comp_index', y='category', orientation='h',
-                              color='comp_index', color_continuous_scale='OrRd',
-                              title="Most Competitive Sectors")
-            fig_comp.update_layout(yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_comp, use_container_width=True, key="competition_index_chart")
+        with c3c:
+            st.markdown("#### 4. Credential Depth")
+            st.caption("Distribution of position levels (seniority titles)")
+            cred_df = df.copy()
+            cred_df['positionLevels'] = cred_df['positionLevels'].fillna('Not specified')
+            pos_levels = cred_df.groupby('positionLevels')['num_vacancies'].sum().reset_index()
+            pos_levels = pos_levels.sort_values('num_vacancies', ascending=False)
+            fig_cred = px.bar(pos_levels, x='positionLevels', y='num_vacancies',
+                              labels={'positionLevels': 'Position Level', 'num_vacancies': 'Vacancies'},
+                              color='num_vacancies', color_continuous_scale='Teal',
+                              title="Credential / Level Distribution")
+            fig_cred.update_layout(xaxis_tickangle=-45, showlegend=False)
+            st.plotly_chart(fig_cred, use_container_width=True, key="credential_depth_chart")
             
         st.markdown("#### 🔍 Deep Dive: Category vs Experience Heatmap")
         st.caption("Where is the demand concentrated?")
@@ -499,21 +497,40 @@ def main():
         st.subheader("🎓 Educational Gap & Opportunity")
         st.markdown("Objective: Identify \"Blue Ocean\" opportunities where job matching rates are highest due to low competition.")
         
-        # 1. Create Experience/Education Segments
-        # exp_segment is already created in data loading section
-
-        # 2. Aggregate Data by Segment
-        edu_metrics = df.groupby('exp_segment').agg({
+        # Prepare metrics for Opportunity Score and Competition Index
+        p2_metrics = df.groupby('category').agg({
             'num_vacancies': 'sum',
             'num_applications': 'sum',
+            'min_exp': 'mean',
             'job_id': 'count'
         }).reset_index()
+        p2_metrics['opp_score'] = p2_metrics['num_vacancies'] / (p2_metrics['min_exp'] + 1)
+        p2_metrics['comp_index'] = p2_metrics.apply(
+            lambda x: x['num_applications'] / x['num_vacancies'] if x['num_vacancies'] > 0 else 0,
+            axis=1
+        )
 
-        # Calculate Competition (Apps per Vacancy)
-        edu_metrics['comp_index'] = edu_metrics['num_applications'] / edu_metrics['num_vacancies']
-
-        c4_1, c4_2, c4_3 = st.columns(3)
+        c4_1, c4_2 = st.columns(2)
         
+        with c4_1:
+            st.markdown("#### Opportunity Score")
+            st.caption("Formula: Total Vacancies ÷ (Avg Min Exp + 1)")
+            top_opp = p2_metrics.nlargest(10, 'opp_score')
+            fig_opp = px.bar(top_opp, x='opp_score', y='category', orientation='h',
+                             color='opp_score', color_continuous_scale='Teal',
+                             title="Highest Opportunity Sectors")
+            fig_opp.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_opp, use_container_width=True, key="opportunity_score_chart")
+        
+        with c4_2:
+            st.markdown("#### Competition Index")
+            st.caption("Formula: Total Applications ÷ Total Vacancies")
+            top_comp = p2_metrics.nlargest(10, 'comp_index')
+            fig_comp = px.bar(top_comp, x='comp_index', y='category', orientation='h',
+                              color='comp_index', color_continuous_scale='OrRd',
+                              title="Most Competitive Sectors")
+            fig_comp.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_comp, use_container_width=True, key="competition_index_chart")
 
         st.markdown("#### 🔍 Deep Dive: Category vs Experience Heatmap")
         st.caption("Where is the demand concentrated?")
