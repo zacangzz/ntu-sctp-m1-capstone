@@ -10,7 +10,7 @@ import os
 # ==========================================
 # 1. CONFIGURATION & STYLING
 # ==========================================
-st.set_page_config(page_title="Workforce Intelligence Portal", layout="wide", page_icon="📊")
+st.set_page_config(page_title="SG Job Market Intelligence for Curriculum Design", layout="wide", page_icon="📊")
 
 # Custom CSS with FORCED COLORS for visibility and Formatting
 st.markdown("""
@@ -84,121 +84,49 @@ class DataProcessor:
             return []
 
     @staticmethod
-    def _extract_category_name(val):
+    def _extract_category(val):
         if isinstance(val, dict):
             return val.get('category', val.get('name', str(val)))
         return str(val)
 
-    @staticmethod
     @st.cache_data(ttl=Config.CACHE_TTL)
     def load_and_clean_data():
         if not os.path.exists(Config.DATA_FILE):
-            st.error(f"🚨 Data file not found. Run `python preprocess_data.py` to create `{Config.DATA_FILE}`.")
+            st.error(f"🚨 Data file not found.")
             st.stop()
 
-        df = pd.read_csv(Config.DATA_FILE, parse_dates=['posting_date', 'month_year'])
+        df = pd.read_csv(Config.DATA_FILE, parse_dates=['posting_date'])
 
-        # Explode categories (one row per job × category)
+        # 1. Derive Time-Based Columns
+        df['month_year'] = df['posting_date'].dt.to_period('M').dt.to_timestamp()
+        
+        # 2. Explode Categories (One row per category)
         df['parsed_categories'] = df['categories'].apply(DataProcessor._parse_categories)
         df = df.explode('parsed_categories')
-        df['category_name'] = df['parsed_categories'].apply(DataProcessor._extract_category_name)
+        df['category'] = df['parsed_categories'].apply(DataProcessor._extract_category)
 
+        # 3. Handle Missing Values for Calculations
+        df['num_vacancies'] = df['num_vacancies'].fillna(1) # Assume at least 1 vacancy if null
+        df['num_applications'] = df['num_applications'].fillna(0)
+        df['min_exp'] = df['min_exp'].fillna(0)
+
+        # 4. Create Experience Segments (Used across multiple tabs)
+        def categorize_exp(years):
+            if years == 0: return '1. Fresh / Entry (0 yrs)'
+            elif years <= 2: return '2. Junior (1-2 yrs)'
+            elif years <= 5: return '3. Mid-Level (3-5 yrs)'
+            elif years <= 8: return '4. Senior (6-8 yrs)'
+            else: return '5. Lead / Expert (9+ yrs)'
+        
+        df['exp_segment'] = df['min_exp'].apply(categorize_exp)
+
+        # Load skills if available (optional)
         if os.path.exists(Config.SKILL_FILE):
             skills_df = pd.read_csv(Config.SKILL_FILE)
         else:
             skills_df = pd.DataFrame()
 
         return df, skills_df
-
-# ==========================================
-# 3. INSIGHT ENGINE
-# ==========================================
-class InsightEngine:
-    @staticmethod
-    def get_market_insights(df, metric_col, group_col):
-        if df.empty: return ["No Data", "No Data"], ["No Data", "No Data"]
-        grouped = df.groupby(group_col)[metric_col].sum().sort_values(ascending=False)
-        top = grouped.head(1)
-        bottom = grouped.tail(1)
-        
-        finding1 = f"**Dominant Player:** The **{top.index[0]}** sector leads with **{top.values[0]:,.0f}** vacancies."
-        finding2 = f"**Niche Market:** **{bottom.index[0]}** shows the lowest activity with **{bottom.values[0]:,.0f}** vacancies."
-        
-        insight1 = f"The concentration of demand in {top.index[0]} suggests a mature market reaching saturation."
-        insight2 = f"Lower volume in {bottom.index[0]} may indicate a specialized niche or declining sector."
-        return [finding1, finding2], [insight1, insight2]
-
-    @staticmethod
-    def get_salary_insights(df):
-        if df.empty: return ["No Data", "No Data"], ["No Data", "No Data"]
-        avg_sal = df.groupby('category_name')['avg_salary'].mean().sort_values(ascending=False)
-        top_pay = avg_sal.head(1)
-        
-        finding1 = f"**Highest Payer:** **{top_pay.index[0]}** offers the best average monthly compensation at **${top_pay.values[0]:,.0f}**."
-        finding2 = f"**Salary Spread:** **{(avg_sal.max() - avg_sal.min()):,.0f} SGD** gap between highest and lowest paying sectors."
-        
-        insight1 = "High starting salaries in tech/finance reflect acute talent shortages."
-        insight2 = "Lower salary sectors might offer other non-monetary benefits to emphasize."
-        return [finding1, finding2], [insight1, insight2]
-
-    @staticmethod
-    def get_heatmap_insights(pivot_df):
-        if pivot_df.empty: return ["No Data", "No Data"], ["No Data", "No Data"]
-        
-        max_val = pivot_df.max().max()
-        max_col = pivot_df.max().idxmax()
-        max_row = pivot_df[max_col].idxmax()
-        
-        finding1 = f"**Top Premium Role:** The **{max_col}** role in **{max_row}** commands the highest specific average salary of **${max_val:,.0f}**."
-        finding2 = "**Overlap Gaps:** Empty or light spots in the heatmap indicate roles that are not commonly defined in those specific sectors."
-        
-        insight1 = "Target curriculum development towards these high-value intersections (Specific Role + Specific Sector)."
-        insight2 = "Encourage students to specialize; generalist roles often show lower color intensity (lower pay) across the board."
-        return [finding1, finding2], [insight1, insight2]
-
-    @staticmethod
-    def get_momentum_insights(growth_df):
-        if growth_df.empty:
-            return ["No data available for trend analysis.", ""], ["-", "-"]
-            
-        top_grower = growth_df.iloc[0]
-        bottom_grower = growth_df.iloc[-1]
-        
-        finding1 = f"**Fastest Mover:** **{top_grower['category_name']}** is accelerating with a **{top_grower['mom_growth']:.1f}%** recent growth rate."
-        finding2 = f"**Cooling Down:** **{bottom_grower['category_name']}** has seen a dip/slowdown of **{bottom_grower['mom_growth']:.1f}%**."
-        
-        insight1 = f"Investigate {top_grower['category_name']} for emerging skills needs; rapid growth often creates curriculum gaps."
-        insight2 = f"Declining momentum in {bottom_grower['category_name']} might signal market saturation or seasonality."
-        
-        return [finding1, finding2], [insight1, insight2]
-
-def render_findings_box(findings, insights):
-    def format_bold(text):
-        return re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-
-    f1 = format_bold(findings[0])
-    f2 = format_bold(findings[1])
-    i1 = format_bold(insights[0])
-    i2 = format_bold(insights[1])
-
-    st.markdown(f"""
-    <div class="insight-box">
-        <div class="finding-title">🔍 Key Findings</div>
-        <div class="insight-text">
-            <ul>
-                <li>{f1}</li>
-                <li>{f2}</li>
-            </ul>
-        </div>
-        <div class="finding-title">💡 Strategic Insights</div>
-        <div class="insight-text">
-            <ul>
-                <li>{i1}</li>
-                <li>{i2}</li>
-            </ul>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ==========================================
 # 4. MAIN APP
@@ -221,12 +149,17 @@ def main():
     else:
         period_str = "Date Unavailable"
 
-    st.title("🎓 Workforce Intelligence Portal")
+    st.title("🎓 SG Job Market Intelligence for Curriculum Design")
     st.markdown("Aligning Curriculum with Real-Time Market Structure")
     st.write(f"**Data Period:** {period_str}")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📊 Executive Summary", "🚀 Market Demand", "💰 Salary & Value", "📈 Market Momentum", "📋 Curriculum Deep-Dive"
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📊 Executive Summary", 
+        "🏭 Sectoral Demand & Momentum", 
+        "🛠️ Skill & Experience", 
+        "🎓 Education Gap & Opportunity",
+        "💰 Salary & Value", 
+        "📋 Curriculum Deep-Dive"
     ])
 
     # --- TAB 1: EXECUTIVE ---
@@ -238,8 +171,8 @@ def main():
         # -----------------------------------------------------------
         
         # 1.1 Ensure View Column Exists & is Numeric
-        view_col = 'metadata_totalNumberOfView'
-        
+        view_col = 'num_views'
+
         if view_col not in df.columns:
             df[view_col] = 0 # Create dummy if missing
             st.toast(f"⚠️ Column `{view_col}` not found. Views set to 0.", icon="ℹ️")
@@ -248,37 +181,37 @@ def main():
             df[view_col] = pd.to_numeric(df[view_col], errors='coerce').fillna(0)
 
         # 1.2 HELPER: Calculate Stats for a specific metric
-        def get_kpi_stats(df, count_method='sum', value_col='numberOfVacancies'):
+        def get_kpi_stats(df, count_method='sum', value_col='num_vacancies'):
             """
             count_method: 'sum' (for vacancies/views) or 'count' (for job posts)
-            value_col: The column to sum (e.g., numberOfVacancies)
+            value_col: The column to sum (e.g., num_vacancies)
             """
             if count_method == 'sum':
                 total_val = df[value_col].sum()
                 # Top sector by sum of that value
-                top_sector = df.groupby('category_name')[value_col].sum().idxmax()
+                top_sector = df.groupby('category')[value_col].sum().idxmax()
                 
                 # Weighted Average Salary (More accurate for Vacancies/Views)
                 if total_val > 0:
-                    avg_sal = (df['avg_salary'] * df[value_col]).sum() / total_val
+                    avg_sal = (df['average_salary'] * df[value_col]).sum() / total_val
                 else:
                     avg_sal = 0
             else: # 'count' (Job Posts)
                 total_val = len(df)
                 # Top sector by count of rows
-                top_sector = df['category_name'].value_counts().idxmax()
+                top_sector = df['category'].value_counts().idxmax()
                 # Simple Average Salary
-                avg_sal = df['avg_salary'].mean()
+                avg_sal = df['average_salary'].mean()
 
             return total_val, top_sector, avg_sal
 
         # CALC 1: Total Vacancies
-        vac_total, vac_top, vac_sal = get_kpi_stats(df, 'sum', 'numberOfVacancies')
+        vac_total, vac_top, vac_sal = get_kpi_stats(df, 'sum', 'num_vacancies')
         
         # CALC 2: Total Job Posted (Rows)
-        post_total, post_top, post_sal = get_kpi_stats(df, 'count', 'clean_title')
+        post_total, post_top, post_sal = get_kpi_stats(df, 'count', 'title')
         
-        # CALC 3: Total Job Views (Using metadata_totalNumberOfView)
+        # CALC 3: Total Job Views (Using num_views)
         view_total, view_top, view_sal = get_kpi_stats(df, 'sum', view_col)
 
         # -----------------------------------------------------------
@@ -358,12 +291,12 @@ def main():
 
         # Logic to switch data based on selection
         if chart_metric == "Vacancies":
-            metric_col = 'numberOfVacancies'
+            metric_col = 'num_vacancies'
             agg_func = 'sum'
             bar_color = '#2E86C1' # Blue
             x_label = 'Total Vacancies'
         elif chart_metric == "Job Posts":
-            metric_col = 'category_name' # Just for counting
+            metric_col = 'category' # Just for counting
             agg_func = 'count'
             bar_color = '#28B463' # Green
             x_label = 'Number of Posts'
@@ -375,16 +308,16 @@ def main():
 
         # Prepare Chart Data
         if agg_func == 'sum':
-            top_sectors_chart = df.groupby('category_name')[metric_col].sum().sort_values(ascending=False).head(10).reset_index()
-            top_sectors_chart.columns = ['category_name', 'Value']
+            top_sectors_chart = df.groupby('category')[metric_col].sum().sort_values(ascending=False).head(10).reset_index()
+            top_sectors_chart.columns = ['category', 'Value']
         else:
-            top_sectors_chart = df['category_name'].value_counts().head(10).reset_index()
-            top_sectors_chart.columns = ['category_name', 'Value']
+            top_sectors_chart = df['category'].value_counts().head(10).reset_index()
+            top_sectors_chart.columns = ['category', 'Value']
 
         # Render Chart
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            y=top_sectors_chart['category_name'],
+            y=top_sectors_chart['category'],
             x=top_sectors_chart['Value'],
             orientation='h',
             marker_color=bar_color,
@@ -400,107 +333,250 @@ def main():
             height=500,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="executive_chart")
 
-        # Insights Footer
-        # f, i = InsightEngine.get_market_insights(df, 'numberOfVacancies', 'category_name')
-        # render_findings_box(f, i)
-
-    # --- TAB 2: DEMAND ---
+# --- TAB 2: SECTORAL DEMAND & MOMENTUM ---
     with tab2:
-        st.subheader("Structural Market Demand")
-        c1, c2 = st.columns(2)
+        st.subheader("🏭 Sectoral Demand & Momentum")
+        st.markdown("Objective: Identify \"What\" to teach by tracking the velocity of industry needs.")
         
-        with c1:
-            st.markdown("#### 📦 Bulk Hiring Map")
-            st.caption("Size = Total Vacancies | Color = Vacancies per Post")
+        col2_1, col2_2 = st.columns([1, 1])
+        
+        with col2_1:
+            # 1. Market Share of Hiring (Vacancies)
+            st.markdown("#### 1. Market Share of Hiring")
+            st.caption("Which sectors have the highest volume of vacancies?")
             
-            tree_data = df.groupby('category_name').agg(
-                total_vacancies=('numberOfVacancies', 'sum'),
-                post_count=('category_name', 'count')
-            ).reset_index()
-            tree_data['bulk_factor'] = tree_data['total_vacancies'] / tree_data['post_count']
+            share_df = df.groupby('category')['num_vacancies'].sum().reset_index()
+            # Sort and group small sectors
+            share_df = share_df.sort_values('num_vacancies', ascending=False)
+            top_share = share_df.head(15)
+            others_val = share_df.iloc[15:]['num_vacancies'].sum()
+            others_df = pd.DataFrame([['Others', others_val]], columns=['category', 'num_vacancies'])
+            final_share = pd.concat([top_share, others_df])
             
-            fig_tree = px.treemap(tree_data, path=['category_name'], values='total_vacancies',
-                                  color='bulk_factor', color_continuous_scale='Blues')
-            st.plotly_chart(fig_tree, use_container_width=True)
-            
-            if not tree_data.empty:
-                leader = tree_data.sort_values('bulk_factor', ascending=False).iloc[0]['category_name']
-                render_findings_box(
-                    [f"**Bulk Leader:** {leader} has highest hiring efficiency.", "Fragmented sectors rely on single-headcount replacements."],
-                    ["High bulk factors suggest 'Class-to-Job' partnership opportunities.", "Low bulk factors imply need for broad networking."]
-                )
+            fig_share = px.pie(final_share, values='num_vacancies', names='category', hole=0.4,
+                               color_discrete_sequence=px.colors.qualitative.Safe)
+            # Make "Others" less prominent by pulling it out slightly
+            if "Others" in final_share['category'].values:
+                category_list = final_share['category'].tolist()
+                others_position = category_list.index("Others")
+                # Create pull array to pull "Others" slice out slightly (deselected effect)
+                pull_values = [0] * len(final_share)
+                pull_values[others_position] = 0.1  # Pull "Others" out by 10%
+                fig_share.update_traces(pull=pull_values)
+            st.plotly_chart(fig_share, use_container_width=True, key="market_share_chart")
 
-        with c2:
-            st.markdown("#### 🏷️ Top Job Titles")
-            top_titles = df['clean_title'].value_counts().head(10).reset_index()
-            top_titles.columns = ['Job Title', 'Count']
+        with col2_2:
+            # 2. Role Prevalence Index (Job Titles)
+            st.markdown("#### 2. Role Prevalence Index")
+            st.caption("Most frequently advertised job titles (Normalized 0-100)")
             
-            fig_bar = px.bar(top_titles, x='Count', y='Job Title', orientation='h', color='Count')
-            fig_bar.update_layout(yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_bar, use_container_width=True)
+            # Add sector filter
+            col_filter, col_dropdown = st.columns([1, 2])
+            with col_filter:
+                st.markdown("**Filter by Sector**")
+            with col_dropdown:
+                all_sectors = ['All'] + sorted(df['category'].unique().tolist())
+                selected_sector_filter = st.selectbox("", all_sectors, key="role_sector_filter", label_visibility="collapsed")
             
-            if not top_titles.empty:
-                render_findings_box(
-                    [f"'{top_titles.iloc[0]['Job Title']}' is the most requested title.", "Standardized titles dominate."],
-                    ["Map curriculum modules to these specific keywords.", "Generic titles imply need for soft skills."]
-                )
+            # Filter data based on sector selection
+            if selected_sector_filter == 'All':
+                filtered_df = df
+            else:
+                filtered_df = df[df['category'] == selected_sector_filter]
+            
+            title_counts = filtered_df['title'].value_counts().reset_index()
+            title_counts.columns = ['Job Title', 'Count']
+            # Normalize to 100
+            max_count = title_counts['Count'].max()
+            title_counts['prevalence'] = (title_counts['Count'] / max_count) * 100
+            
+            fig_role = px.bar(title_counts.head(10), x='prevalence', y='Job Title', orientation='h',
+                              color='prevalence', color_continuous_scale='Blues',
+                              labels={'prevalence': 'Prevalence Index'})
+            fig_role.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_role, use_container_width=True, key="role_prevalence_chart")
 
-    # --- TAB 3: SALARY ---
+        # 3. Demand Velocity (Time Series)
+        st.markdown("#### 3. Demand Velocity (Vacancy Growth)")
+        st.caption("Trend of vacancies over time. Steep lines = High Momentum.")
+        
+        # Aggregate by Month
+        velocity_df = df.groupby('month_year')['num_vacancies'].sum().reset_index()
+        
+        if len(velocity_df) > 1:
+            fig_vel = px.line(velocity_df, x='month_year', y='num_vacancies', markers=True,
+                              line_shape='spline', title="Total Market Vacancy Trend")
+            
+            # Add trendline annotation
+            start_val = velocity_df.iloc[0]['num_vacancies']
+            end_val = velocity_df.iloc[-1]['num_vacancies']
+            growth = ((end_val - start_val) / start_val) * 100 if start_val > 0 else 0
+            
+            fig_vel.add_annotation(x=velocity_df.iloc[-1]['month_year'], y=end_val,
+                                   text=f"Growth: {growth:.1f}%", showarrow=True, arrowhead=1)
+            st.plotly_chart(fig_vel, use_container_width=True, key="demand_velocity_chart")
+        else:
+            st.warning("Not enough data points for time-series velocity.")
+            
+ # --- TAB 3: SKILL & EXPERIENCE ---
     with tab3:
+        st.subheader("🛠️ Skill & Experience Analysis")
+        st.markdown("Objective: Align the \"Level\" of training with market reality to ensure graduate ROI.")
+        
+        # Prepare Pillar 2 Metrics
+        p2_metrics = df.groupby('category').agg({
+            'num_vacancies': 'sum',
+            'num_applications': 'sum',
+            'min_exp': 'mean',
+            'job_id': 'count'  # Count of posts
+        }).reset_index()
+
+        # METRIC CALCULATIONS
+        # 1. Opportunity Score: Vacancies per year of experience required
+        # (High Score = Lots of jobs for little experience)
+        p2_metrics['opp_score'] = p2_metrics['num_vacancies'] / (p2_metrics['min_exp'] + 1)
+        
+        # 2. Competition Index: Applications per Vacancy
+        # (High Score = Harder to get)
+        p2_metrics['comp_index'] = p2_metrics.apply(
+            lambda x: x['num_applications'] / x['num_vacancies'] if x['num_vacancies'] > 0 else 0, 
+            axis=1
+        )
+
+        c3_1, c3_2, c3_3 = st.columns(3)
+        
+        with c3_1:
+            st.markdown("#### 1. Experience Distribution")
+            st.caption("Distribution of required experience levels across all sectors")
+            
+            exp_dist = df['min_exp'].value_counts().sort_index().reset_index()
+            exp_dist.columns = ['Experience (Years)', 'Count']
+            
+            fig_exp = px.bar(exp_dist, x='Experience (Years)', y='Count', 
+                           title="Required Experience Distribution")
+            st.plotly_chart(fig_exp, use_container_width=True, key="experience_distribution_chart")
+        
+        with c3_2:
+            st.markdown("#### 2. Opportunity Score")
+            st.caption("Formula: Total Vacancies ÷ (Avg Min Exp + 1)")
+            
+            top_opp = p2_metrics.nlargest(10, 'opp_score')
+            fig_opp = px.bar(top_opp, x='opp_score', y='category', orientation='h',
+                             color='opp_score', color_continuous_scale='Teal',
+                             title="Highest Opportunity Sectors")
+            fig_opp.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_opp, use_container_width=True, key="opportunity_score_chart")
+        
+        with c3_3:
+            st.markdown("#### 3. Competition Index")
+            st.caption("Formula: Total Applications ÷ Total Vacancies")
+            
+            top_comp = p2_metrics.nlargest(10, 'comp_index')
+            fig_comp = px.bar(top_comp, x='comp_index', y='category', orientation='h',
+                              color='comp_index', color_continuous_scale='OrRd',
+                              title="Most Competitive Sectors")
+            fig_comp.update_layout(yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_comp, use_container_width=True, key="competition_index_chart")
+            
+        st.markdown("#### 🔍 Deep Dive: Category vs Experience Heatmap")
+        st.caption("Where is the demand concentrated?")
+        
+        # Heatmap: X=Experience Level, Y=Top 10 Categories, Z=Vacancies
+        top_10_cats = df['category'].value_counts().head(10).index
+        heat_data = df[df['category'].isin(top_10_cats)]
+        
+        heat_pivot = heat_data.pivot_table(index='category', columns='exp_segment', 
+                                         values='num_vacancies', aggfunc='sum').fillna(0)
+        
+        fig_heat = px.imshow(heat_pivot, aspect='auto', color_continuous_scale='Viridis',
+                             labels=dict(x="Experience Level", y="Sector", color="Vacancies"))
+        st.plotly_chart(fig_heat, use_container_width=True, key="skill_experience_heatmap")
+
+# --- TAB 4: EDUCATION GAP & OPPORTUNITY ---
+    with tab4:
+        st.subheader("🎓 Educational Gap & Opportunity")
+        st.markdown("Objective: Identify \"Blue Ocean\" opportunities where job matching rates are highest due to low competition.")
+        
+        # 1. Create Experience/Education Segments
+        # exp_segment is already created in data loading section
+
+        # 2. Aggregate Data by Segment
+        edu_metrics = df.groupby('exp_segment').agg({
+            'num_vacancies': 'sum',
+            'num_applications': 'sum',
+            'job_id': 'count'
+        }).reset_index()
+
+        # Calculate Competition (Apps per Vacancy)
+        edu_metrics['comp_index'] = edu_metrics['num_applications'] / edu_metrics['num_vacancies']
+
+        c4_1, c4_2, c4_3 = st.columns(3)
+        
+
+        st.markdown("#### 🔍 Deep Dive: Category vs Experience Heatmap")
+        st.caption("Where is the demand concentrated?")
+        
+        # Heatmap: X=Experience Level, Y=Top 10 Categories, Z=Vacancies
+        top_10_cats = df['category'].value_counts().head(10).index
+        heat_data = df[df['category'].isin(top_10_cats)]
+        
+        heat_pivot = heat_data.pivot_table(index='category', columns='exp_segment', 
+                                         values='num_vacancies', aggfunc='sum').fillna(0)
+        
+        fig_heat = px.imshow(heat_pivot, aspect='auto', color_continuous_scale='Viridis',
+                             labels=dict(x="Experience Level", y="Sector", color="Vacancies"))
+        st.plotly_chart(fig_heat, use_container_width=True, key="education_gap_heatmap")
+        
+    # --- TAB 5: SALARY ---
+    with tab5:
         st.subheader("Compensation & ROI")
         
         st.markdown("#### 🫧 Experience vs. Compensation Matrix")
-        bubble_data = df.groupby('category_name').agg(
-            avg_exp=('minimumYearsExperience', 'mean'),
-            avg_sal=('avg_salary', 'mean'),
-            volume=('numberOfVacancies', 'sum')
+        bubble_data = df.groupby('category').agg(
+            avg_exp=('min_exp', 'mean'),
+            avg_sal=('average_salary', 'mean'),
+            volume=('num_vacancies', 'sum')
         ).reset_index()
         
-        fig_bub = px.scatter(bubble_data, x='avg_exp', y='avg_sal', size='volume', color='category_name',
-                             hover_name='category_name', size_max=60,
+        fig_bub = px.scatter(bubble_data, x='avg_exp', y='avg_sal', size='volume', color='category',
+                             hover_name='category', size_max=60,
                              labels={'avg_exp': 'Avg Min Experience (Years)', 'avg_sal': 'Avg Salary (SGD)'})
-        st.plotly_chart(fig_bub, use_container_width=True)
-        
-        fs, isi = InsightEngine.get_salary_insights(df)
-        render_findings_box(fs, isi)
+        st.plotly_chart(fig_bub, use_container_width=True, key="salary_bubble_chart")
         
         st.divider()
         st.markdown("#### 🔥 Salary Heatmap (Top Sectors vs Titles)")
         
-        top_cats = df['category_name'].value_counts().head(8).index
-        top_ts = df['clean_title'].value_counts().head(8).index
-        heatmap_df = df[df['category_name'].isin(top_cats) & df['clean_title'].isin(top_ts)]
-        
+        top_cats = df['category'].value_counts().head(8).index
+        top_ts = df['title'].value_counts().head(8).index
+        heatmap_df = df[df['category'].isin(top_cats) & df['title'].isin(top_ts)]
+
         if not heatmap_df.empty:
-            pivot = heatmap_df.pivot_table(index='category_name', columns='clean_title', values='avg_salary', aggfunc='mean')
+            pivot = heatmap_df.pivot_table(index='category', columns='title', values='average_salary', aggfunc='mean')
             fig_heat = px.imshow(pivot, labels=dict(x="Job Title", y="Sector", color="Salary"),
                                  color_continuous_scale='RdBu_r', aspect="auto")
-            st.plotly_chart(fig_heat, use_container_width=True)
-            
-            hm_f, hm_i = InsightEngine.get_heatmap_insights(pivot)
-            render_findings_box(hm_f, hm_i)
+            st.plotly_chart(fig_heat, use_container_width=True, key="salary_heatmap")
 
-    # --- TAB 4: MARKET MOMENTUM ---
-    with tab4:
+    # --- TAB 6: MARKET MOMENTUM ---
+    with tab6:
         st.subheader("Market Momentum & Trends")
         st.markdown("Identifying emerging sectors, seasonal peaks, and growth velocity.")
         
         if 'month_year' in df.columns:
-            trend_data = df.groupby(['month_year', 'category_name'])['numberOfVacancies'].sum().reset_index()
-            top_sectors = df.groupby('category_name')['numberOfVacancies'].sum().nlargest(8).index.tolist()
-            filtered_trend = trend_data[trend_data['category_name'].isin(top_sectors)]
+            trend_data = df.groupby(['month_year', 'category'])['num_vacancies'].sum().reset_index()
+            top_sectors = df.groupby('category')['num_vacancies'].sum().nlargest(8).index.tolist()
+            filtered_trend = trend_data[trend_data['category'].isin(top_sectors)]
             
             st.markdown("#### 📈 Historical Vacancy Volume (Top 8 Sectors)")
-            fig_line = px.line(filtered_trend, x='month_year', y='numberOfVacancies', color='category_name',
+            fig_line = px.line(filtered_trend, x='month_year', y='num_vacancies', color='category',
                                title="Vacancy Trends over Time", markers=True,
                                labels={
                                    'month_year': 'Date',
-                                   'numberOfVacancies': 'Vacancy Volume',
-                                   'category_name': 'Industry'
+                                   'num_vacancies': 'Vacancy Volume',
+                                   'category': 'Industry'
                                })
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(fig_line, use_container_width=True, key="vacancy_trend_chart")
             
             st.divider()
             m1, m2 = st.columns(2)
@@ -509,57 +585,54 @@ def main():
                 st.markdown("#### 🔥 Seasonal Hiring Heatmap")
                 st.caption("Identify peak hiring months. Darker colors = Higher demand.")
                 filtered_trend['Month'] = filtered_trend['month_year'].dt.strftime('%Y-%m')
-                heatmap_data = filtered_trend.pivot_table(index='category_name', columns='Month', values='numberOfVacancies', aggfunc='sum').fillna(0)
+                heatmap_data = filtered_trend.pivot_table(index='category', columns='Month', values='num_vacancies', aggfunc='sum').fillna(0)
                 fig_hm = px.imshow(heatmap_data, labels=dict(x="Month", y="Industry", color="Vacancies"),
                                    color_continuous_scale='Magma_r', aspect="auto")
-                st.plotly_chart(fig_hm, use_container_width=True)
+                st.plotly_chart(fig_hm, use_container_width=True, key="seasonal_heatmap")
 
             with m2:
                 st.markdown("#### 🚀 Momentum Leaderboard (Recent Growth)")
                 st.caption("Which sectors are accelerating? (Avg Month-on-Month Growth, Last Quarter)")
-                filtered_trend = filtered_trend.sort_values(['category_name', 'month_year'])
-                filtered_trend['mom_growth'] = filtered_trend.groupby('category_name')['numberOfVacancies'].pct_change() * 100
-                recent_growth = filtered_trend.groupby('category_name').tail(3).groupby('category_name')['mom_growth'].mean().reset_index()
+                filtered_trend = filtered_trend.sort_values(['category', 'month_year'])
+                filtered_trend['mom_growth'] = filtered_trend.groupby('category')['num_vacancies'].pct_change() * 100
+                recent_growth = filtered_trend.groupby('category').tail(3).groupby('category')['mom_growth'].mean().reset_index()
                 recent_growth = recent_growth.sort_values('mom_growth', ascending=False)
                 
-                fig_mom = px.bar(recent_growth, x='mom_growth', y='category_name', orientation='h',
+                fig_mom = px.bar(recent_growth, x='mom_growth', y='category', orientation='h',
                                  title="Avg MoM Growth Rate (Last 3 Months)",
-                                 labels={'mom_growth': 'Growth Rate (%)', 'category_name': 'Industry'},
+                                 labels={'mom_growth': 'Growth Rate (%)', 'category': 'Industry'},
                                  color='mom_growth', color_continuous_scale='Tealgrn')
                 fig_mom.update_layout(yaxis={'categoryorder': 'total ascending'})
-                st.plotly_chart(fig_mom, use_container_width=True)
-
-            fm, im = InsightEngine.get_momentum_insights(recent_growth)
-            render_findings_box(fm, im)
+                st.plotly_chart(fig_mom, use_container_width=True, key="momentum_leaderboard")
             
         else:
             st.warning("No time-series data available. Check 'posting_date' parsing.")
 
     # --- TAB 5: CURRICULUM ---
-    with tab5:
+    with tab6:
         st.subheader("📋 Curriculum Alignment Tool")
         
-        sectors = sorted(df['category_name'].astype(str).unique())
+        sectors = sorted(df['category'].astype(str).unique())
         selected_sector = st.selectbox("Select Target Sector:", sectors)
         
         col_c1, col_c2 = st.columns(2)
-        sec_df = df[df['category_name'] == selected_sector]
+        sec_df = df[df['category'] == selected_sector]
 
         with col_c1:
             st.info(f"📊 Live Market Stats: **{selected_sector}**")
             if not sec_df.empty:
-                st.write(f"**Total Vacancies:** {sec_df['numberOfVacancies'].sum():,}")
-                entry_sal = sec_df[sec_df['minimumYearsExperience']<=2]['avg_salary'].mean()
+                st.write(f"**Total Vacancies:** {sec_df['num_vacancies'].sum():,}")
+                entry_sal = sec_df[sec_df['min_exp']<=2]['average_salary'].mean()
                 st.write(f"**Avg Entry Salary:** ${entry_sal:,.0f}" if not pd.isna(entry_sal) else "N/A")
                 st.markdown("**Top Job Title Keywords:**")
-                st.bar_chart(sec_df['clean_title'].value_counts().head(5))
+                st.bar_chart(sec_df['title'].value_counts().head(5))
             else:
                 st.warning("No data found for this sector.")
 
         with col_c2:
             st.success(f"📚 Reference Curriculum: **{selected_sector}**")
             if not skills_df.empty:
-                ref = skills_df[skills_df['category_name'] == selected_sector]
+                ref = skills_df[skills_df['category'] == selected_sector]
                 if not ref.empty:
                     for idx, row in ref.iterrows():
                         with st.expander(f"Level: {row.get('positionLevels', 'General')}"):
@@ -576,22 +649,22 @@ def main():
             
             display_df = sec_df.copy()
             if search_text:
-                display_df = display_df[display_df['clean_title'].str.contains(search_text, case=False)]
-            
-            # Remove duplicates based on clean_title
-            display_df = display_df.drop_duplicates(subset=['clean_title'], keep='first').reset_index(drop=True)
+                display_df = display_df[display_df['title'].str.contains(search_text, case=False)]
+
+            # Remove duplicates based on title
+            display_df = display_df.drop_duplicates(subset=['title'], keep='first').reset_index(drop=True)
 
             rename_map = {
-                'clean_title': 'Job Title', 
+                'title': 'Job Title',
                 'positionLevels': 'Position Level',
-                'minimumYearsExperience': 'Min Exp (Years)',
-                'avg_salary': 'Avg Salary ($)'
+                'min_exp': 'Min Exp (Years)',
+                'average_salary': 'Avg Salary ($)'
             }
-            cols_to_select = [c for c in ['clean_title', 'positionLevels', 'minimumYearsExperience', 'avg_salary'] if c in display_df.columns]
+            cols_to_select = [c for c in ['title', 'positionLevels', 'min_exp', 'average_salary'] if c in display_df.columns]
             final_df = display_df[cols_to_select].rename(columns=rename_map)
             
             st.dataframe(
-                final_df.head(100), 
+                final_df.head(100),
                 use_container_width=True,
                 column_config={
                     "Avg Salary ($)": st.column_config.NumberColumn(
