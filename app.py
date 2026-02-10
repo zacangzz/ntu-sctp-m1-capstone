@@ -436,40 +436,21 @@ def main():
             fig_role.update_layout(yaxis={'categoryorder': 'total ascending'})
             st.plotly_chart(fig_role, use_container_width=True, key="role_prevalence_chart")
 
-        # 3. Demand Velocity (Time Series)
+        # 3. Demand Velocity (Vacancy Growth)
         st.markdown("#### 📈 Demand Velocity (Vacancy Growth)")
         st.caption("Trend of vacancies over time. Steep lines = High Momentum.")
         
-        # Add sector filter for trend analysis
-        trend_sectors = ['All'] + sorted(df['category'].unique().tolist())
-        col_trend_filter, col_trend_space = st.columns([1, 3])
-        with col_trend_filter:
-            st.markdown("**Filter by Sector**")
-        with col_trend_space:
-            selected_trend_sector = st.selectbox("", trend_sectors, key="trend_sector_filter", label_visibility="collapsed")
-        
-        # Filter data based on sector selection
-        if selected_trend_sector == 'All':
-            trend_df = df
-        else:
-            trend_df = df[df['category'] == selected_trend_sector]
-        
-        # Aggregate by Month
-        velocity_df = trend_df.groupby('month_year')['num_vacancies'].sum().reset_index()
+        # Top 10 sectors by vacancy volume
+        velocity_df = df[df['category'] != 'Others']
+        top_10_sectors = velocity_df.groupby('category')['num_vacancies'].sum().nlargest(10).index
+        velocity_df = velocity_df[velocity_df['category'].isin(top_10_sectors)]
+        velocity_df = velocity_df.groupby(['month_year', 'category'])['num_vacancies'].sum().reset_index()
         
         if len(velocity_df) > 1:
-            chart_title = "Total Market Vacancy Trend" if selected_trend_sector == 'All' else f"{selected_trend_sector} Vacancy Trend"
-            fig_vel = px.line(velocity_df, x='month_year', y='num_vacancies', markers=True,
-                              line_shape='spline', title=chart_title,
-                              labels={'month_year': '', 'num_vacancies': 'Number of Vacancies'})
-            
-            # Add trendline annotation (only for specific sectors, not "All")
-            if selected_trend_sector != 'All':
-                start_val = velocity_df.iloc[0]['num_vacancies']
-                end_val = velocity_df.iloc[-1]['num_vacancies']
-                growth = ((end_val - start_val) / start_val) * 100 if start_val > 0 else 0
-                fig_vel.add_annotation(x=velocity_df.iloc[-1]['month_year'], y=end_val,
-                                       text=f"Growth: {growth:.1f}%", showarrow=True, arrowhead=1)
+            fig_vel = px.line(velocity_df, x='month_year', y='num_vacancies', color='category',
+                              markers=True, line_shape='spline',
+                              title="Top 10 Sectors: Vacancy Trend Over Time",
+                              labels={'month_year': 'Posting Date', 'num_vacancies': 'Vacancies', 'category': 'Sector'})
             st.plotly_chart(fig_vel, use_container_width=True, key="demand_velocity_chart")
         else:
             st.warning("Not enough data points for time-series velocity.")
@@ -490,7 +471,7 @@ def main():
         st.plotly_chart(fig_bulk, use_container_width=True, key="bulk_hiring_map")
 
         # 5. Skills in High Demand
-        st.markdown("#### Skills in High Demand")
+        st.markdown("#### High Demand Skills")
         st.caption("Skills mapped from sectors with highest vacancy volume. Based on skillset × sector demand.")
         
         # Add sector filter for skills analysis
@@ -583,14 +564,30 @@ def main():
         # Experience vs Compensation
         st.markdown("#### Experience vs Compensation")
         st.caption("Average salary by years of experience required. Shows the pay-off for each experience tier.")
-        exp_comp = df.groupby('min_exp').apply(
+        
+        # Add sector filter
+        exp_comp_sectors = ['All'] + sorted(df['category'].unique().tolist())
+        col_exp_filter, col_exp_dropdown = st.columns([1, 3])
+        with col_exp_filter:
+            st.markdown("**Filter by Sector**")
+        with col_exp_dropdown:
+            selected_exp_sector = st.selectbox("", exp_comp_sectors, key="exp_comp_sector_filter", label_visibility="collapsed")
+        
+        # Filter data based on sector selection
+        if selected_exp_sector == 'All':
+            exp_comp_df = df
+        else:
+            exp_comp_df = df[df['category'] == selected_exp_sector]
+        
+        exp_comp = exp_comp_df.groupby('min_exp').apply(
             lambda g: (g['average_salary'] * g['num_vacancies']).sum() / g['num_vacancies'].sum()
         ).reset_index(name='avg_salary')
         exp_comp = exp_comp.sort_values('min_exp')
+        chart_title = "Compensation by Experience Requirement" if selected_exp_sector == 'All' else f"Compensation by Experience Requirement - {selected_exp_sector}"
         fig_exp_comp = px.line(
             exp_comp, x='min_exp', y='avg_salary', markers=True,
             labels={'min_exp': 'Years of Experience Required', 'avg_salary': 'Avg Salary (SGD)'},
-            title="Compensation by Experience Requirement"
+            title=chart_title
         )
         fig_exp_comp.update_traces(line=dict(color='#2E86C1', width=2), marker=dict(size=10))
         st.plotly_chart(fig_exp_comp, use_container_width=True, key="exp_comp_chart")
@@ -635,6 +632,22 @@ def main():
                           title="Most Competitive Sectors")
         fig_comp.update_layout(yaxis={'categoryorder': 'total ascending'})
         st.plotly_chart(fig_comp, use_container_width=True, key="competition_index_chart")
+
+        # Supply vs Demand Treemap
+        st.markdown("#### Supply vs Demand")
+        st.caption("Treemap: Rectangle size = Vacancies (demand), Color intensity = Applications (supply).")
+        supply_demand = p2_metrics[p2_metrics['category'] != 'Others'].copy()
+        supply_demand = supply_demand.sort_values('num_vacancies', ascending=False).head(20)
+        # Create treemap: size by vacancies, color by applications
+        fig_supply_demand = px.treemap(
+            supply_demand, path=[px.Constant("All Sectors"), 'category'],
+            values='num_vacancies', color='num_applications',
+            color_continuous_scale='RdYlGn_r',
+            labels={'num_vacancies': 'Vacancies (Size)', 'num_applications': 'Applications (Color)'},
+            title='Supply vs Demand Treemap',
+            hover_data=['num_vacancies', 'num_applications']
+        )
+        st.plotly_chart(fig_supply_demand, use_container_width=True, key="supply_demand_treemap")
 
         # The "Hidden Demand" Quadrant Analysis
         st.markdown("#### The \"Hidden Demand\"")
