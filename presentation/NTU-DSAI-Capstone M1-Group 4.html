@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NTU DSAI Capstone Project Module 1</title>
+    <style>
+        :root {
+            --ntu-blue: #002d5b;
+            --ntu-red: #c0282d;
+            --bg-light: #f4f7f9;
+            --text-main: #2c3e50;
+            --accent-gold: #b3a369;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 3px solid var(--ntu-blue);
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+        }
+
+        .header h1 { color: var(--ntu-blue); margin: 0; font-size: 2.2em; }
+        .header h2 { color: var(--ntu-red); margin: 5px 0; font-weight: 400; }
+
+        /* 1x2 Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Left Side: Cycle Visualization */
+        .cycle-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .cycle-step {
+            width: 85%;
+            padding: 15px;
+            margin: 10px 0;
+            background: #fff;
+            border: 2px solid var(--ntu-blue);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .cycle-step:hover {
+            background: var(--ntu-blue);
+            color: white;
+            transform: scale(1.03);
+        }
+
+        .cycle-step.active {
+            background: var(--ntu-red);
+            border-color: var(--ntu-red);
+            color: white;
+        }
+
+        /* Arrow styling */
+        .cycle-step:not(:last-child)::after {
+            content: '↓';
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 20px;
+            color: var(--ntu-blue);
+        }
+
+        /* Right Side: Content Box */
+        .detail-box {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            min-height: 500px;
+            border-top: 6px solid var(--ntu-blue);
+        }
+
+        .content-section { display: none; animation: fadeIn 0.4s ease; }
+        .content-section.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Tables and Pillars */
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.9em; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: var(--ntu-blue); color: white; }
+        
+        .pillar-card {
+            border-left: 4px solid var(--ntu-red);
+            background: #fdfdfd;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        /* Dashboard Button Styling */
+        .btn-wrapper {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            margin: 30px 0 10px 0;
+        }
+
+        .launch-btn {
+            background-color: var(--ntu-red);
+            color: white;
+            text-decoration: none;
+            padding: 16px 40px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 4px 15px rgba(192, 40, 45, 0.3);
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .launch-btn:hover {
+            background-color: var(--ntu-blue);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 45, 91, 0.4);
+            color: white;
+        }
+
+        .launch-btn::after {
+            content: '↗';
+            font-size: 0.9em;
+        }
+
+        .challenges-section {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid var(--accent-gold);
+        }
+
+        h3 { color: var(--ntu-blue); margin-top: 0; }
+        ul { line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>NTU DSAI Capstone Project Module 1</h1>
+    <h2>Singapore Job Market Analysis</h2>
+</div>
+
+<div class="main-container">
+    <div class="cycle-container">
+        <h4 style="margin-bottom: 20px; color: var(--ntu-blue);">Data Analysis Life Cycle</h4>
+        <div class="cycle-step active" onclick="showDetail(1, this)">1. Business Understanding</div>
+        <div class="cycle-step" onclick="showDetail(2, this)">2. Data Acquisition</div>
+        <div class="cycle-step" onclick="showDetail(3, this)">3. Data Preparation</div>
+        <div class="cycle-step" onclick="showDetail(4, this)">4. Exploratory Data Analysis</div>
+        <div class="cycle-step" onclick="showDetail(5, this)">5. Data Visualization</div>
+        <div class="cycle-step" onclick="showDetail(6, this)">6. Implementation</div>
+    </div>
+
+    <div class="detail-box" id="detail-box">
+        
+        <div id="step-1" class="content-section active">
+            <h3>Strategic Alignment & Problem Definition</h3>
+            <p><strong>Primary Objective:</strong> Empower institutional leadership to synchronize academic curricula with real-world workforce demand, pinpointing high-growth potential in emerging sectors. </p>
+            <p><strong>Target Audience:</strong> Curriculum designers, strategic program planners, and institutional leadership. </p>
+            <p><strong>Value Proposition:</strong> Reducing the "job–training mismatch" by providing high-fidelity visibility into structural employment demand and differentiating between static and emerging skill sets. </p>
+        </div>
+
+        <div id="step-2" class="content-section">
+            <h3>Data Acquisition & Collection</h3>
+            <p>Gathering comprehensive market intelligence to serve as the project foundation: </p>
+            <ul>
+                <li><strong>Primary Dataset:</strong> SGJobData (CSV format). </li>
+                <li><strong>Context:</strong> Aggregated Singapore-specific job postings, including metadata on vacancies, application volume, and sectoral categories. </li>
+            </ul>
+        </div>
+
+        <div id="step-3" class="content-section">
+            <h3>Data Preparation & Engineering</h3>
+            <p>Refining raw data into a reliable analytical asset: </p>
+            <ul>
+                <li><strong>Data Cleaning:</strong> Elimination of empty rows and unused columns; cap average salary using Log-IQR;noise reduction in job titles using fuzzy matching. </li>
+                <li><strong>Data Enrichment:</strong> Integration of skills data to enable competency mapping. </li>
+            </ul>
+        </div>
+
+        <div id="step-4" class="content-section">
+            <h3>Exploratory Data Analysis (EDA)</h3>
+            <p>Uncovering latent market behaviors through pattern recognition: </p>
+            <ul>
+                <li><strong>Trend Identification:</strong> Comparative analysis of job vacancies against application volume across diverse economic sectors. </li>
+                <li><strong>Sectoral Profiling:</strong> Identifying demand velocity and role-specific density. </li>
+            </ul>
+        </div>
+
+        <div id="step-5" class="content-section">
+            <h3>Strategic Dashboard Development</h3>
+            <p>A multi-dimensional visualization suite focused on three strategic pillars: </p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pillar & Goal </th>
+                        <th>Metric & Visualization </th>
+                        <th>Strategic Action for Educators </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>1. Sectoral Demand</strong><br><small>Identify high-growth hotspots</small></td>
+                        <td>Bulk Hiring (Heatmap), Demand Velocity (Trendline), High Demand Skills (Bar Chart)</td>
+                        <td>Timing-aligned program launches, integrate specific skill tags into module learning outcomes.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>2. Skill & Experience</strong><br><small>Align program difficulty</small></td>
+                        <td>Salary by Seniority (Histogram), Exp. vs. Compensation (Line Chart), Experience Gates (Histogram)</td>
+                        <td>Map current programs against the compensation curve, designate fresh-grad friendly roles as "Primary Targets".</td>
+                    </tr>
+                    <tr>
+                        <td><strong>3. Opportunity & Educational Gap</strong><br><small>Identify "Blue Ocean" opportunities</small></td>
+                        <td>Suppy vs Demand (Treemap), Competition Index (Bar Chart), The "Hidden Demand" (Quadrant Analysis)</td>
+                        <td>Diversify curriculum in saturated field, incubate "Beta" courses for these future-proof roles before they go mainstream.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="step-6" class="content-section">
+            <h3>Implementation</h3>
+            <p><em>Use Case: IT Education & Training Provider </em></p>
+            <div class="pillar-card">
+                <strong>Pillar 1: Momentum</strong> - Identifying hyper-growth roles to justify program scaling. <br>
+				Key Finding: xxxx<br>
+				Key Takeaway: yyyy<br>
+            </div>
+            <div class="pillar-card">
+                <strong>Pillar 2: Skill & Experience</strong> - Mapping curriculum complexity against actual market entry barriers. <br>
+				Key Finding: xxxx<br>
+				Key Takeaway: yyyy<br>
+            </div>
+            <div class="pillar-card">
+                <strong>Pillar 3: Opportunity & Educational Gap</strong> - Launching unique programs in undersaturated but high-potential fields. <br>
+				Key Finding: xxxx<br>
+				Key Takeaway: yyyy<br>
+            </div>
+            <div class="pillar-card">
+                <strong>Strategic Actions: </strong><br>
+				- xxxx<br>
+				- yyyy<br>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="btn-wrapper">
+        <a href="https://ntu-m1-capstone.theluwak.com/" target="_blank" class="launch-btn">
+            Launch Dashboard
+        </a>
+    </div>
+
+    <div class="challenges-section">
+        <h4 style="margin:0 0 10px 0; color:var(--ntu-blue)">Challenges & Learnings </h4>
+        <ul style="margin:0; display:flex; gap: 40px; list-style-type: '✔ ';">
+            <li>Defining high-fidelity metrics </li>
+            <li>Accurate data interpretation for strategic decisioning </li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    function showDetail(stepId, element) {
+        // Toggle Active Class for Cycle
+        document.querySelectorAll('.cycle-step').forEach(el => el.classList.remove('active'));
+        element.classList.add('active');
+
+        // Toggle Visibility for Detail Content 
+        document.querySelectorAll('.content-section').forEach(section => {
+            section.classList.remove('active');
+        });
+        document.getElementById('step-' + stepId).classList.add('active');
+    }
+</script>
+
+</body>
+</html>
