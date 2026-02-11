@@ -90,7 +90,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 class Config:
-    DATA_FILE = 'data/SGJobData_opt.csv.xz'
+    DATA_FILE = 'data/cleaned-sgjobdata.parquet'
     SKILL_FILE = 'data/skillset.csv'
     CACHE_TTL = 3600
 

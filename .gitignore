@@ -50,7 +50,7 @@ env/
 # Data files
 *.xlsx
 *.xls
-*.parquet
+#*.parquet
 
 # Backup copies
 * copy*
