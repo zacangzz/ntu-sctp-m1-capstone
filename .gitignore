@@ -50,6 +50,10 @@ env/
 # Data files
 *.xlsx
 *.xls
+*.parquet
+
+# Backup copies
+* copy*
 
 # Pytest
 .pytest_cache/
