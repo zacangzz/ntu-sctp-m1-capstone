@@ -91,12 +91,9 @@ st.markdown("""
 
 class Config:
     DATA_FILE = 'data/cleaned-sgjobdata.parquet'
-    SKILL_FILE = 'data/skillset.csv'
+    SKILL_FILE = 'data/cleaned-sgjobdata-category-withskills.parquet'
     CACHE_TTL = 3600
 
-# ==========================================
-# 2. DATA PROCESSING ENGINE
-# ==========================================
 def _remove_outliers(df, col):
     """IQR-based outlier clipping (same logic as preprocess_data.remove_outliers)."""
     Q1 = df[col].quantile(0.25)
@@ -108,6 +105,9 @@ def _remove_outliers(df, col):
                     np.where(df[col] < lower_bound, lower_bound, df[col]))
 
 
+# ==========================================
+# 2. DATA PROCESSING ENGINE
+# ==========================================
 class DataProcessor:
     @staticmethod
     def _parse_categories(cat_str):
@@ -130,11 +130,23 @@ class DataProcessor:
             st.error(f"🚨 Data file not found.")
             st.stop()
 
-        df = pd.read_csv(Config.DATA_FILE, parse_dates=['posting_date'])
-
-        # 0. Clip salary outliers (IQR-based)
-        if 'average_salary' in df.columns and not df.empty:
-            df['average_salary'] = _remove_outliers(df, 'average_salary')
+        df = pd.read_parquet(Config.DATA_FILE)
+        # Align column names with app expectations
+        rename_map = {}
+        if 'title' in df.columns and 'jobtitle_cleaned' not in df.columns:
+            rename_map['title'] = 'jobtitle_cleaned'
+        if 'positionlevels' in df.columns and 'positionLevels' not in df.columns:
+            rename_map['positionlevels'] = 'positionLevels'
+        if rename_map:
+            df = df.rename(columns=rename_map)
+        # Use cleaned salary column
+        if 'average_salary_cleaned' in df.columns:
+            df['average_salary'] = df['average_salary_cleaned']
+        if 'posting_date' in df.columns:
+            df['posting_date'] = pd.to_datetime(df['posting_date'])
+        elif 'posting_date' not in df.columns:
+            # Parquet may lack date column; use placeholder for time-based charts
+            df['posting_date'] = pd.Timestamp('2023-06-01')
 
         # 1. Derive Time-Based Columns
         df['month_year'] = df['posting_date'].dt.to_period('M').dt.to_timestamp()
@@ -148,6 +160,10 @@ class DataProcessor:
         df['num_vacancies'] = df['num_vacancies'].fillna(1) # Assume at least 1 vacancy if null
         df['num_applications'] = df['num_applications'].fillna(0)
         df['min_exp'] = df['min_exp'].fillna(0)
+        # Outlier handling for min_exp (IQR-based, then clip to 0-15)
+        if 'min_exp' in df.columns and not df.empty:
+            df['min_exp'] = _remove_outliers(df, 'min_exp')
+        df['min_exp'] = np.clip(df['min_exp'], 0, 15)
 
         # 4. Create Experience Segments (Used across multiple tabs)
         def categorize_exp(years):
@@ -161,7 +177,7 @@ class DataProcessor:
 
         # Load skills if available (optional)
         if os.path.exists(Config.SKILL_FILE):
-            skills_df = pd.read_csv(Config.SKILL_FILE)
+            skills_df = pd.read_parquet(Config.SKILL_FILE)
         else:
             skills_df = pd.DataFrame()
 
@@ -424,7 +440,7 @@ def main():
             else:
                 filtered_df = df[df['category'] == selected_sector_filter]
             
-            title_counts = filtered_df['title'].value_counts().reset_index()
+            title_counts = filtered_df['jobtitle_cleaned'].value_counts().reset_index()
             title_counts.columns = ['Job Title', 'Count']
             # Normalize to 100
             max_count = title_counts['Count'].max()
@@ -472,46 +488,101 @@ def main():
 
         # 5. Skills in High Demand
         st.markdown("#### High Demand Skills")
-        st.caption("Skills mapped from sectors with highest vacancy volume. Based on skillset × sector demand.")
+        st.caption("Top 10 skills by unique job postings over time.")
         
-        # Add sector filter for skills analysis
-        skills_sectors = ['All'] + sorted(df['category'].unique().tolist())
-        col_skills_filter, col_skills_space = st.columns([1, 3])
-        with col_skills_filter:
-            st.markdown("**Filter by Sector**")
-        with col_skills_space:
-            selected_skills_sector = st.selectbox("", skills_sectors, key="skills_sector_filter", label_visibility="collapsed")
-        
-        if not skills_df.empty and 'skills' in skills_df.columns and 'category' in skills_df.columns:
-            # Explode skills: each skill -> categories that require it
-            skills_df['skill'] = skills_df['skills'].astype(str).str.split(',')
-            skill_cat = skills_df.explode('skill')
-            skill_cat['skill'] = skill_cat['skill'].str.strip()
-            skill_cat = skill_cat[skill_cat['skill'].str.len() > 0]
+        if not skills_df.empty:
+            # Ensure posting_date is datetime
+            skills_df['posting_date'] = pd.to_datetime(skills_df['posting_date'], errors='coerce')
+            skills_df = skills_df.dropna(subset=['posting_date'])
             
-            # Filter skills data based on sector selection
-            if selected_skills_sector != 'All':
-                skill_cat = skill_cat[skill_cat['category'] == selected_skills_sector]
+            # Extract year-month for grouping
+            skills_df['year_month'] = skills_df['posting_date'].dt.to_period('M').astype(str)
             
-            # Vacancies per category
-            vac_by_cat = df.groupby('category')['num_vacancies'].sum()
-            # For each skill, sum vacancies from categories that require it
-            skill_demand = skill_cat.groupby('skill')['category'].apply(
-                lambda cats: vac_by_cat.reindex(cats.unique()).fillna(0).sum()
-            ).reset_index(name='demand')
-            skill_demand = skill_demand.sort_values('demand', ascending=False).head(15)
+            # Get available months sorted
+            available_months = sorted(skills_df['year_month'].unique())
             
-            # Update chart title based on selection
-            chart_title = "Top 15 Skills by Market Demand" if selected_skills_sector == 'All' else f"Top 15 Skills in {selected_skills_sector}"
-            
-            fig_skills = px.bar(skill_demand, x='demand', y='skill', orientation='h',
-                               labels={'demand': 'Vacancy Demand', 'skill': 'Skill'},
-                               color='demand', color_continuous_scale='Blues',
-                               title=chart_title)
-            fig_skills.update_layout(yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_skills, use_container_width=True, key="skills_demand_chart")
+            if len(available_months) > 0:
+                # Add sector filter
+                skills_sectors = ['All'] + sorted(skills_df['category'].dropna().unique().tolist())
+                col_skills_filter, col_skills_space = st.columns([1, 3])
+                with col_skills_filter:
+                    st.markdown("**Filter by Sector**")
+                with col_skills_space:
+                    selected_skills_sector = st.selectbox("", skills_sectors, key="skills_sector_filter", label_visibility="collapsed")
+                
+                # Filter by sector if selected
+                skills_filtered = skills_df.copy()
+                if selected_skills_sector != 'All':
+                    skills_filtered = skills_filtered[skills_filtered['category'] == selected_skills_sector]
+                
+                # Prepare data for all months
+                frames = []
+                all_skills = set()
+                
+                for month in available_months:
+                    month_data = skills_filtered[skills_filtered['year_month'] == month]
+                    skill_counts = month_data.groupby('skill')['job_id'].nunique().reset_index(name='job_count')
+                    skill_counts = skill_counts.sort_values('job_count', ascending=False).head(10)
+                    
+                    if not skill_counts.empty:
+                        all_skills.update(skill_counts['skill'].tolist())
+                        
+                        frames.append(go.Frame(
+                            data=[go.Bar(
+                                y=skill_counts['skill'],
+                                x=skill_counts['job_count'],
+                                orientation='h',
+                                marker=dict(color=skill_counts['job_count'], colorscale='Blues')
+                            )],
+                            name=month
+                        ))
+                
+                # Get initial month data
+                initial_month = available_months[0]
+                initial_data = skills_filtered[skills_filtered['year_month'] == initial_month]
+                initial_counts = initial_data.groupby('skill')['job_id'].nunique().reset_index(name='job_count')
+                initial_counts = initial_counts.sort_values('job_count', ascending=False).head(10)
+                
+                if frames and not initial_counts.empty:
+                    # Create figure with frames
+                    chart_title = f'Top 10 Skills by Month: {initial_month}' if selected_skills_sector == 'All' else f'Top 10 Skills in {selected_skills_sector}'
+                    
+                    fig = go.Figure(
+                        data=[go.Bar(
+                            y=initial_counts['skill'],
+                            x=initial_counts['job_count'],
+                            orientation='h',
+                            marker=dict(color=initial_counts['job_count'], colorscale='Blues')
+                        )],
+                        frames=frames
+                    )
+                    
+                    fig.update_layout(
+                        title=chart_title,
+                        xaxis_title='Number of Unique Job Postings',
+                        yaxis_title='Skill',
+                        height=600,
+                        yaxis={'categoryorder': 'total ascending'},
+                        sliders=[{
+                            'active': 0,
+                            'steps': [
+                                {
+                                    'args': [[f.name], {'frame': {'duration': 300}, 'mode': 'immediate', 'transition': {'duration': 300}}],
+                                    'label': f.name,
+                                    'method': 'animate'
+                                } for f in frames
+                            ],
+                            'transition': {'duration': 300}
+                        }]
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, key="skills_demand_chart")
+                else:
+                    st.info(f"No skills data available for {selected_skills_sector}")
+            else:
+                st.info("No date information available in skills data.")
         else:
-            st.info("Skills data not available. Add skillset.csv with 'category' and 'skills' columns.")
+            st.info("Skills data not available.")
             
  # --- TAB 3: SKILL & EXPERIENCE ---
     with tab3:
