@@ -1,5 +1,4 @@
 # Capstone Project
-
 This README compiles information about this project and my learnings w.r.t. the process of getting here.
 
 ## About using AI coding tools
@@ -11,77 +10,23 @@ This README compiles information about this project and my learnings w.r.t. the 
 6. have a structured plan and instructions in MD files, and then when providing instructions to claude or codex, reference it directly using ```@``` to point it to files and remind it to instructions.
 
 ## Files
-
 * ```data/SGJobData.csv.xz```, this file is the CSV file data source for the project, except compressed so that GitHub can accept it.
     * processed data are saved as ```'*.parquet'``` files, and prefixed with 'cleaned', 3 files:
         * pre-exploded categories
         * post-exploded categories
         * pre-explode categories with skills
+    * other files are source files and file from skillsfuture
 * ```notebooks/*.ipynb```, jupyter notebook for testing out graphs and commands etc.
     * ```-eda.ipynb```, file that generated the cleaned parquet dfs
     * ```-ed-ml.ipynb```, can ignore, first trial for generating skillslist
     * ```analysis.ipynb```, comprehensive skills analysis dashboard with visualizations
-* ```app.py```, main source code for streamlit application hosting
-    * run this in streamlit
-
-## Skills Analysis Dashboard (notebooks/analysis.ipynb)
-
-Comprehensive Jupyter notebook analyzing 2,053 unique skills across ~1M Singapore job postings (Oct 2022 - May 2024).
-
-### Analysis Sections
-
-1. **Skill Popularity Overview**
-   - Top 20 most in-demand skills and 20 least popular skills
-   - Distribution analysis showing skill demand concentration
-   - Cumulative demand curve (80% of demand concentrated in top ~300 skills)
-
-2. **Emerging & Declining Skills**
-   - Growth rate analysis comparing recent 3 months vs previous 3 months
-   - Top 20 fastest-growing and declining skills
-   - Timeline trends for top 10 skills over 19-month period
-
-3. **Skills vs Experience Level**
-   - Heatmap showing skill-experience requirement patterns for top 30 skills
-   - Box plots of experience distribution across top 15 skills
-   - Analysis of skills requiring highest/lowest experience barriers
-
-4. **High Premium Skills (Salary Analysis)**
-   - Top 25 highest-paying skills with average salaries
-   - Bubble chart: Salary vs Popularity vs Experience requirements
-   - High-value skills identification (high salary + low experience barrier)
-
-5. **Skills by Category**
-   - Top 10 skills for each of the top 6 job categories
-   - Stacked bar chart showing distribution of top skills across categories
-
-6. **Universal Skills (Cross-Category Analysis)**
-   - Skills appearing across most categories (transferable skills)
-   - Transferability score metric (category coverage × demand)
-   - Scatter plot: universality vs total demand
-
-7. **Skill Co-occurrence Network**
-   - Network graph showing which skills commonly appear together in job postings
-   - Identifies skill clusters and complementary skill sets
-   - Top 40 skills with 150 most common co-occurrence pairs
-
-8. **Comprehensive Dashboard Summary**
-   - Single-page overview combining all key insights
-   - Statistical summary with key findings and trends
-
-### Key Insights Generated
-
-- Market concentration metrics (top N skills accounting for X% of demand)
-- Fastest growing/declining skills with growth rates
-- Highest-paying skills with salary benchmarks
-- Most universal cross-industry transferable skills
-- High-value skills (high ROI for learning)
-- Skill combination patterns and clusters
+* ```scripts/ ```, test scripts
+* ```streamlit```, main source code for streamlit application hosting
 
 ### Data Source
-
 Uses `data/cleaned-sgjobdata-withskills.parquet` as single source of truth (6.2M records, exploded by skills from ~1M unique jobs). Applies proper date parsing and category extraction without additional data cleaning.
 
-## Data: data/cleaned-sgjobdata-exploded.parquet
+## Data: data/cleaned-sgjobdata-withskills.parquet
 this is a list dataframe of job postings.
  0   job_id                  string     : unique identifier
  1   title                   string     : job title (dirty and messy)
@@ -97,6 +42,8 @@ this is a list dataframe of job postings.
  11  jobtitle_cleaned        string     : cleaned job title 
  12  skill                   string     : skills needed for this particular job_id
 
+* note: the file ```data/cleaned-sgjobdata.parquet``` is basically the same thing without skills, while the file ```data/cleaned-sgjobdata-exploded.parquet``` is the non skills version bit with category exploded
+
 ## How to set up environment
 uv is a Python environment manager. To set up the environment, run the following commands after you have installed uv:
 
@@ -111,7 +58,7 @@ uv is a Python environment manager. To set up the environment, run the following
 
 ## How to Run Streamlit app:
 1. navigate to project folder
-2. run command ```streamlit run app.py```
+2. run command ```streamlit run streamlit/app.py```
 
 ## Data Cleaning Notes // Issues
 1. NULLs dropped via Job ID
@@ -123,7 +70,7 @@ uv is a Python environment manager. To set up the environment, run the following
     * first try was abandoned, where an LLM is used to perform one-shot inference, the data is minimally cleaned and then combined with company name to provide even more context in the hopes of the llm being able to generate a better list of 'top skills', however, the generated list of skills follow no taxonomy so there is no standard and no consistetncy for proper analysis. using a governement approved taxonomy is better sense.
 
 ## Collaboration via Git
-* version control across many people is difficult, haven't learn how to collab properly
+* version control across many people is difficult, we haven't learn how to collab properly
 
 ## Visualisation
 * issues with getting the correct formulas to get the visuals that we want to see
@@ -132,7 +79,7 @@ uv is a Python environment manager. To set up the environment, run the following
 ## Links
 * [Skills Framework Dataset](https://jobsandskills.skillsfuture.gov.sg/frameworks/skills-frameworks)
 
-## Git & GitHub
+## Git & GitHub identity debugging
 * ```eval "$(ssh-agent -s)" ```
 * ```ssh-add ~/.ssh/id_ed25519```
 * ```ssh-add -l  ```
