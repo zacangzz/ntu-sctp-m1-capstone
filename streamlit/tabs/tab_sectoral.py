@@ -8,6 +8,7 @@ def _prepare_sectoral_df(df):
     sector_df = df[df["category"].notna() & (df["category"] != "Others")].copy()
     sector_df = sector_df.drop_duplicates(subset=["job_id", "category", "month_year"])
     sector_df["category_count"] = sector_df.groupby("job_id")["category"].transform("nunique").clip(lower=1)
+    sector_df["job_postings_alloc"] = 1 / sector_df["category_count"]
     sector_df["num_applications_adj"] = sector_df["num_applications"] / sector_df["category_count"]
     sector_df["num_vacancies_adj"] = sector_df["num_vacancies"] / sector_df["category_count"]
     return sector_df
@@ -41,6 +42,25 @@ def get_bulk_hiring_data(df):
                                      values="job_id", aggfunc="nunique").fillna(0).astype(int)
     bulk_factor = apps.divide(vacs.where(vacs > 0)).fillna(0)
     return bulk_factor, apps, vacs, jobs
+
+
+def get_category_competition_summary(df, excluded_categories=None):
+    comp_df = _prepare_sectoral_df(df)
+    if excluded_categories:
+        comp_df = comp_df[~comp_df["category"].isin(excluded_categories)]
+
+    summary_df = comp_df.groupby("category").agg(
+        allocated_job_postings=("job_postings_alloc", "sum"),
+        total_applications=("num_applications_adj", "sum"),
+        total_vacancies=("num_vacancies_adj", "sum"),
+        unique_job_count=("job_id", "nunique"),
+    ).reset_index()
+
+    summary_df["avg_applications_per_job"] = summary_df["total_applications"].divide(
+        summary_df["allocated_job_postings"].where(summary_df["allocated_job_postings"] > 0)
+    ).fillna(0)
+
+    return summary_df
 
 
 def render(df):
@@ -97,3 +117,109 @@ def render(df):
         ),
     )
     st.plotly_chart(fig_bulk, use_container_width=True, key="bulk_hiring_map")
+
+    st.markdown("#### 📊 Category Competition Snapshot")
+    st.caption("Uses allocated counts from the exploded dataset to avoid overcounting multi-category postings.")
+    st.caption("Average Applications per Job = Total Applications (allocated) ÷ Allocated Job Postings.")
+
+    categories = sorted(df["category"].dropna().unique().tolist())
+    categories = [cat for cat in categories if cat != "Others"]
+    default_exclusions = [cat for cat in [
+        "F&B",
+        "Wholesale Trade",
+        "Personal Care / Beauty",
+        "General Work",
+        "Sales / Retail",
+    ] if cat in categories]
+
+    comp_col_1, comp_col_2 = st.columns([1, 2])
+    with comp_col_1:
+        top_n = st.slider("Top N Categories", min_value=5, max_value=20, value=10, step=1, key="cat_comp_top_n")
+    with comp_col_2:
+        excluded_categories = st.multiselect(
+            "Exclude Categories",
+            options=categories,
+            default=default_exclusions,
+            key="cat_comp_exclusions",
+        )
+
+    competition_df = get_category_competition_summary(df, excluded_categories)
+
+    if competition_df.empty:
+        st.info("No category data available after applying filters.")
+        return
+
+    jobs_top = competition_df.nlargest(top_n, "allocated_job_postings").sort_values("allocated_job_postings")
+    apps_top = competition_df.nlargest(top_n, "total_applications").sort_values("total_applications")
+    avg_top = competition_df.nlargest(top_n, "avg_applications_per_job").sort_values("avg_applications_per_job")
+
+    fig_jobs = px.bar(
+        jobs_top,
+        x="allocated_job_postings",
+        y="category",
+        orientation="h",
+        title=f"Top {top_n} Categories by Allocated Job Postings",
+        color_discrete_sequence=["#2E8B57"],
+        labels={"allocated_job_postings": "Allocated Job Postings", "category": "Sector"},
+        custom_data=["total_applications", "total_vacancies", "unique_job_count", "avg_applications_per_job"],
+    )
+    fig_jobs.update_traces(
+        hovertemplate=(
+            "Sector: %{y}<br>"
+            "Allocated Job Postings: %{x:,.2f}<br>"
+            "Applications (allocated): %{customdata[0]:,.2f}<br>"
+            "Vacancies (allocated): %{customdata[1]:,.2f}<br>"
+            "Avg Applications per Job: %{customdata[3]:.2f}<br>"
+            "Unique job_id: %{customdata[2]:,.0f}<extra></extra>"
+        )
+    )
+    st.plotly_chart(fig_jobs, use_container_width=True, key="cat_comp_jobs_chart")
+
+    fig_apps = px.bar(
+        apps_top,
+        x="total_applications",
+        y="category",
+        orientation="h",
+        title=f"Top {top_n} Categories by Total Applications (Allocated)",
+        color_discrete_sequence=["#9ACD32"],
+        labels={"total_applications": "Total Applications (Allocated)", "category": "Sector"},
+        custom_data=["allocated_job_postings", "total_vacancies", "unique_job_count", "avg_applications_per_job"],
+    )
+    fig_apps.update_traces(
+        hovertemplate=(
+            "Sector: %{y}<br>"
+            "Total Applications (allocated): %{x:,.2f}<br>"
+            "Allocated Job Postings: %{customdata[0]:,.2f}<br>"
+            "Vacancies (allocated): %{customdata[1]:,.2f}<br>"
+            "Avg Applications per Job: %{customdata[3]:.2f}<br>"
+            "Unique job_id: %{customdata[2]:,.0f}<extra></extra>"
+        )
+    )
+    st.plotly_chart(fig_apps, use_container_width=True, key="cat_comp_apps_chart")
+
+    fig_avg = px.bar(
+        avg_top,
+        x="avg_applications_per_job",
+        y="category",
+        orientation="h",
+        title=f"Top {top_n} Categories by Average Applications per Allocated Job",
+        color_discrete_sequence=["#228B22"],
+        labels={"avg_applications_per_job": "Avg Applications per Job", "category": "Sector"},
+        custom_data=["total_applications", "allocated_job_postings", "total_vacancies", "unique_job_count"],
+    )
+    fig_avg.update_traces(
+        hovertemplate=(
+            "Sector: %{y}<br>"
+            "Avg Applications per Job: %{x:.2f}<br>"
+            "Applications (allocated): %{customdata[0]:,.2f}<br>"
+            "Allocated Job Postings: %{customdata[1]:,.2f}<br>"
+            "Vacancies (allocated): %{customdata[2]:,.2f}<br>"
+            "Unique job_id: %{customdata[3]:,.0f}<extra></extra>"
+        )
+    )
+    st.plotly_chart(fig_avg, use_container_width=True, key="cat_comp_avg_chart")
+
+    st.dataframe(
+        competition_df.sort_values("avg_applications_per_job", ascending=False).head(top_n).reset_index(drop=True),
+        use_container_width=True,
+    )

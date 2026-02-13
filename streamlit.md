@@ -15,7 +15,7 @@ Run from the **project root** (the directory containing `data/`).
 | Tab | Purpose |
 |-----|---------|
 | **Executive Summary** | KPI metrics (vacancies, posts, views) and top-10 sector bar chart |
-| **Sectoral Demand & Momentum** | Bulk-factor velocity line chart, hiring heatmap, skill demand timeline |
+| **Sectoral Demand & Momentum** | Bulk-factor velocity line chart, hiring heatmap, and category competition snapshot |
 | **Experience Level** | Vacancy distribution pie chart and salary boxplot by experience segment |
 | **Opportunity** | Supply-vs-demand treemap and hidden-demand quadrant scatter (by industry, job title, or skill) |
 | **Skills Analysis** | Popularity, emerging/declining trends, premium salary skills, transferability, and per-category breakdowns |

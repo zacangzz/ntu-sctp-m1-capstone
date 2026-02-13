@@ -8,6 +8,7 @@ This README compiles information about this project and my learnings w.r.t. the 
 3. running the plan mode without properly writing out instructions sucks up tokens really really quickly and it gets expensive. plan mode at this stage uses opus 4.6 which is the most expensive - perhaps i should check if plan mode can use other models?
 4. run ```/compact``` frequently can help to maintain some context without over consuming tokens!
 5. always initialise git *AND* commit regularly before and after each claude action so that you can track changes and roll back if necessary!
+6. have a structured plan and instructions in MD files, and then when providing instructions to claude or codex, reference it directly using ```@``` to point it to files and remind it to instructions.
 
 ## Files
 
