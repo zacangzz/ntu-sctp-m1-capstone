@@ -1,9 +1,5 @@
 import streamlit as st
-import pandas as pd
 import plotly.express as px
-
-from data_loader import load_skills_optimized
-
 
 def get_demand_velocity(df):
     velocity_df = df[df["category"] != "Others"]
@@ -57,62 +53,3 @@ def render(df):
     fig_bulk = px.imshow(bulk_pivot, aspect="auto", color_continuous_scale="YlOrRd",
                          labels=dict(x="Month", y="Sector", color="Bulk Factor"))
     st.plotly_chart(fig_bulk, use_container_width=True, key="bulk_hiring_map")
-
-    # Skills in High Demand
-    st.markdown("#### High Demand Skills")
-    st.caption("Top 10 skills by unique job postings over time.")
-
-    skills_df = load_skills_optimized()
-
-    if not skills_df.empty:
-        available_months = sorted(skills_df["month_year"].unique())
-        month_labels = {}
-        for month in available_months:
-            date_obj = pd.to_datetime(month)
-            month_labels[month] = date_obj.strftime("%b %Y")
-
-        if len(available_months) > 0:
-            st.markdown("### 📈 Skill Demand Timeline - Top 10 Most Popular Skills")
-
-            skills_sectors = ["All"] + sorted(skills_df["category"].dropna().unique().tolist())
-            col_skills_filter, col_skills_space = st.columns([1, 3])
-            with col_skills_filter:
-                st.markdown("**Filter by Sector**")
-            with col_skills_space:
-                selected_skills_sector = st.selectbox("", skills_sectors,
-                                                      key="skills_sector_filter",
-                                                      label_visibility="collapsed")
-
-            skills_filtered = skills_df.copy()
-            if selected_skills_sector != "All":
-                skills_filtered = skills_filtered[skills_filtered["category"] == selected_skills_sector]
-
-            top_skills = skills_filtered.groupby("skill")["job_count"].sum().nlargest(10).index.tolist()
-
-            if top_skills:
-                timeline_df = skills_filtered[skills_filtered["skill"].isin(top_skills)].copy()
-                timeline_df = timeline_df.groupby(["skill", "month_year"])["job_count"].sum().reset_index()
-                timeline_df["month_label"] = timeline_df["month_year"].map(month_labels)
-
-                fig = px.line(
-                    timeline_df, x="month_label", y="job_count", color="skill", markers=True,
-                    title=("Skill Demand Timeline - Top 10 Most Popular Skills"
-                           if selected_skills_sector == "All"
-                           else f"Top 10 Skills in {selected_skills_sector}"),
-                    labels={"month_label": "Month-Year Period",
-                            "job_count": "Number of Unique Job Postings",
-                            "skill": "Skill"},
-                )
-                fig.update_layout(
-                    height=600, hovermode="x unified",
-                    legend=dict(title="Skills", orientation="v",
-                                yanchor="top", y=1, xanchor="left", x=1.02),
-                )
-                fig.update_traces(line=dict(width=2.5))
-                st.plotly_chart(fig, use_container_width=True, key="skills_demand_chart")
-            else:
-                st.info(f"No skills data available for {selected_skills_sector}")
-        else:
-            st.info("No date information available in skills data.")
-    else:
-        st.info("Skills data file not found or empty.")
