@@ -1,6 +1,7 @@
 import streamlit as st
 import plotly.express as px
 
+from chart_style import render_plotly_chart
 from data_loader import load_skills_analysis_data
 
 
@@ -108,7 +109,7 @@ def render():
             color_discrete_sequence=["#2E86C1"],
         )
         fig_top.update_layout(yaxis=dict(autorange="reversed"), height=600)
-        st.plotly_chart(fig_top, use_container_width=True, key="top20_skills")
+        render_plotly_chart(fig_top, key="top20_skills")
 
     with col_pop2:
         bottom20 = skill_counts.tail(20).sort_values(ascending=True).reset_index()
@@ -120,7 +121,7 @@ def render():
             color_discrete_sequence=["#E74C3C"],
         )
         fig_bot.update_layout(yaxis=dict(autorange="reversed"), height=600)
-        st.plotly_chart(fig_bot, use_container_width=True, key="bottom20_skills")
+        render_plotly_chart(fig_bot, key="bottom20_skills")
 
     st.divider()
 
@@ -141,7 +142,7 @@ def render():
             color_discrete_sequence=["#28B463"],
         )
         fig_emerging.update_layout(yaxis=dict(autorange="reversed"), height=500)
-        st.plotly_chart(fig_emerging, use_container_width=True, key="emerging_skills")
+        render_plotly_chart(fig_emerging, key="emerging_skills")
 
     with col_de:
         declining = growth_rate.tail(15).sort_values(ascending=True).reset_index()
@@ -153,7 +154,7 @@ def render():
             color_discrete_sequence=["#E74C3C"],
         )
         fig_declining.update_layout(yaxis=dict(autorange="reversed"), height=500)
-        st.plotly_chart(fig_declining, use_container_width=True, key="declining_skills")
+        render_plotly_chart(fig_declining, key="declining_skills")
 
     st.divider()
 
@@ -172,7 +173,7 @@ def render():
         color_discrete_sequence=["#F39C12"],
     )
     fig_premium.update_layout(yaxis=dict(autorange="reversed"), height=700)
-    st.plotly_chart(fig_premium, use_container_width=True, key="premium_skills")
+    render_plotly_chart(fig_premium, key="premium_skills")
 
     # Salary vs Popularity bubble chart
     st.markdown("##### Salary vs Popularity")
@@ -188,7 +189,7 @@ def render():
         color_discrete_sequence=["#3498DB"],
     )
     fig_bubble.update_layout(height=600)
-    st.plotly_chart(fig_bubble, use_container_width=True, key="salary_vs_popularity")
+    render_plotly_chart(fig_bubble, key="salary_vs_popularity")
 
     # High-value skills: high salary + low experience
     median_salary = skill_salary["avg_salary"].median()
@@ -205,7 +206,7 @@ def render():
         color_discrete_sequence=["#8E44AD"],
     )
     fig_hv.update_layout(yaxis=dict(autorange="reversed"), height=600)
-    st.plotly_chart(fig_hv, use_container_width=True, key="high_value_skills")
+    render_plotly_chart(fig_hv, key="high_value_skills")
 
     st.divider()
 
@@ -224,7 +225,7 @@ def render():
             color_discrete_sequence=["#1ABC9C"],
         )
         fig_uni.update_layout(yaxis=dict(autorange="reversed"), height=700)
-        st.plotly_chart(fig_uni, use_container_width=True, key="universal_skills")
+        render_plotly_chart(fig_uni, key="universal_skills")
 
     with col_uni2:
         top_transferable = universal.nlargest(25, "transferability_score")
@@ -235,7 +236,7 @@ def render():
             color_discrete_sequence=["#2980B9"],
         )
         fig_trans.update_layout(yaxis=dict(autorange="reversed"), height=700)
-        st.plotly_chart(fig_trans, use_container_width=True, key="transferable_skills")
+        render_plotly_chart(fig_trans, key="transferable_skills")
 
     st.divider()
 
@@ -261,4 +262,4 @@ def render():
         color_discrete_sequence=["#E67E22"],
     )
     fig_cat.update_layout(yaxis=dict(autorange="reversed"), height=450)
-    st.plotly_chart(fig_cat, use_container_width=True, key="category_skills_chart")
+    render_plotly_chart(fig_cat, key="category_skills_chart")

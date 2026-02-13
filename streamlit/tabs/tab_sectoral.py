@@ -2,6 +2,8 @@ import streamlit as st
 import plotly.express as px
 import numpy as np
 
+from chart_style import render_plotly_chart
+
 
 def _prepare_sectoral_df(df):
     """Allocate each posting's demand across its categories to avoid multi-tag overcounting."""
@@ -90,7 +92,7 @@ def render(df):
                 "Unique job_id: %{customdata[2]:,.0f}<extra></extra>"
             )
         )
-        st.plotly_chart(fig_vel, use_container_width=True, key="demand_velocity_chart")
+        render_plotly_chart(fig_vel, key="demand_velocity_chart", height=560)
     else:
         st.warning("Not enough data points for time-series velocity.")
 
@@ -116,7 +118,7 @@ def render(df):
             "Unique job_id: %{customdata[2]:,.0f}<extra></extra>"
         ),
     )
-    st.plotly_chart(fig_bulk, use_container_width=True, key="bulk_hiring_map")
+    render_plotly_chart(fig_bulk, key="bulk_hiring_map", height=560)
 
     st.markdown("#### 📊 Category Competition Snapshot")
     st.caption("Uses allocated counts from the exploded dataset to avoid overcounting multi-category postings.")
@@ -173,7 +175,7 @@ def render(df):
             "Unique job_id: %{customdata[2]:,.0f}<extra></extra>"
         )
     )
-    st.plotly_chart(fig_jobs, use_container_width=True, key="cat_comp_jobs_chart")
+    render_plotly_chart(fig_jobs, key="cat_comp_jobs_chart", height=520)
 
     fig_apps = px.bar(
         apps_top,
@@ -195,7 +197,7 @@ def render(df):
             "Unique job_id: %{customdata[2]:,.0f}<extra></extra>"
         )
     )
-    st.plotly_chart(fig_apps, use_container_width=True, key="cat_comp_apps_chart")
+    render_plotly_chart(fig_apps, key="cat_comp_apps_chart", height=520)
 
     fig_avg = px.bar(
         avg_top,
@@ -217,7 +219,7 @@ def render(df):
             "Unique job_id: %{customdata[3]:,.0f}<extra></extra>"
         )
     )
-    st.plotly_chart(fig_avg, use_container_width=True, key="cat_comp_avg_chart")
+    render_plotly_chart(fig_avg, key="cat_comp_avg_chart", height=520)
 
     st.dataframe(
         competition_df.sort_values("avg_applications_per_job", ascending=False).head(top_n).reset_index(drop=True),

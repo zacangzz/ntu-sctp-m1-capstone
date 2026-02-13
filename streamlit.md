@@ -30,11 +30,18 @@ All paths are relative to the project root:
 | `data/skills_optimized.parquet` | Tab 2 skill timeline |
 | `data/cleaned-sgjobdata-withskills.parquet` | Tabs 4-5 (skills-enriched data) |
 
+## Visual Standardization
+
+- Default chart library is interactive Plotly across all tabs.
+- Shared chart styling and Plotly config are centralized in `streamlit/chart_style.py`.
+- Use `render_plotly_chart(fig, key=...)` (instead of calling `st.plotly_chart` directly) to keep typography, spacing, grid, hover labels, and modebar behavior consistent.
+
 ## File Structure
 
 ```
 streamlit/
   app.py              # Entry point: config, styling, tab shell, main()
+  chart_style.py      # Shared Plotly styling + chart render helper
   data_loader.py      # All @st.cache_data loading functions
   tabs/
     __init__.py

@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+from chart_style import render_plotly_chart
 
 EXP_BINS = [0, 2, 5, 10, float("inf")]
 EXP_LABELS = ["0-2 yrs (Entry/Junior)", ">2-5 yrs (Mid-Level)",
@@ -67,7 +68,7 @@ def render(df):
         )])
         fig_pie.update_layout(title="Vacancy Distribution by Experience Level",
                               height=400, showlegend=False)
-        st.plotly_chart(fig_pie, use_container_width=True, key="exp_distribution_pie")
+        render_plotly_chart(fig_pie, key="exp_distribution_pie")
 
     with c3_new2:
         st.markdown("#### Average Salary Distribution by Experience")
@@ -87,29 +88,24 @@ def render(df):
             return
 
         vacancy_totals = df_plot.groupby("exp_group", observed=False)["num_vacancies"].sum()
+        ticktext = [f"{grp}<br>(Total vacancies: {int(vacancy_totals.get(grp, 0)):,})" for grp in EXP_LABELS]
+        points_mode = "outliers" if show_outliers else False
 
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.boxplot(
-            data=plot_df,
+        fig_box = px.box(
+            plot_df,
             x="exp_group",
             y=salary_col,
-            order=EXP_LABELS,
-            palette=colors,
-            linewidth=1,
-            showfliers=show_outliers,
-            ax=ax,
+            color="exp_group",
+            category_orders={"exp_group": EXP_LABELS},
+            points=points_mode,
+            color_discrete_sequence=colors,
+            labels={"exp_group": "Experience (Years)", salary_col: "Average Salary (SGD)"},
+            title="Average Salary Distribution by Experience Group (weighted by num_vacancies, cap=5)",
         )
-        ax.set_xticks(range(len(EXP_LABELS)))
-        xticklabels = [f"{grp}\n(Total vacancies: {int(vacancy_totals.get(grp, 0))})" for grp in EXP_LABELS]
-        ax.set_xticklabels(xticklabels)
-        ax.set_xlabel("Experience (Years)", fontsize=12)
-        ax.set_ylabel("Average Salary (SGD)", fontsize=12)
-        ax.set_title("Average Salary Distribution by Experience Group (weighted by num_vacancies, cap=5)",
-                     fontsize=14, fontweight="bold")
-        plt.grid(True, axis="y", which="major", linestyle="--", alpha=0.6)
-        plt.minorticks_on()
-        plt.grid(True, which="minor", axis="y", linestyle=":", alpha=0.3)
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
+        fig_box.update_layout(showlegend=False)
+        fig_box.update_xaxes(tickmode="array", tickvals=EXP_LABELS, ticktext=ticktext)
+        fig_box.update_traces(
+            hovertemplate="Experience: %{x}<br>Average Salary: %{y:,.0f}<extra></extra>"
+        )
+        render_plotly_chart(fig_box, key="exp_salary_distribution_chart", height=520)
         st.caption(f"Salary source: `{salary_col}`.")

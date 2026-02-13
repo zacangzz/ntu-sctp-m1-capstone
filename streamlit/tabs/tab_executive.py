@@ -1,5 +1,7 @@
 import streamlit as st
-import altair as alt
+import plotly.express as px
+
+from chart_style import render_plotly_chart
 
 
 def calculate_executive_metrics(df):
@@ -58,10 +60,17 @@ def render(df):
         chart_data = get_top_sectors_data(df, "num_views", 10)
         x_label, bar_color = "Total Views", "#E67E22"
 
-    altair_chart = alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X("Value:Q", title=x_label),
-        y=alt.Y("category:N", sort="-x", title="Sector"),
-        color=alt.value(bar_color),
-        tooltip=["category", alt.Tooltip("Value:Q", format=",.0f")],
-    ).properties(height=500, title=f"Top 10 Sectors by {chart_metric}")
-    st.altair_chart(altair_chart, use_container_width=True)
+    chart_data = chart_data.sort_values("Value", ascending=True)
+    fig = px.bar(
+        chart_data,
+        x="Value",
+        y="category",
+        orientation="h",
+        title=f"Top 10 Sectors by {chart_metric}",
+        labels={"Value": x_label, "category": "Sector"},
+        color_discrete_sequence=[bar_color],
+    )
+    fig.update_traces(
+        hovertemplate=f"Sector: %{{y}}<br>{x_label}: %{{x:,.0f}}<extra></extra>"
+    )
+    render_plotly_chart(fig, key="executive_top_sectors_chart", height=520)

@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+from chart_style import render_plotly_chart
 from data_loader import load_withskills_data
 
 
@@ -39,7 +40,7 @@ def render(df):
         title="Supply vs Demand Treemap",
         hover_data=["num_vacancies", "num_applications"],
     )
-    st.plotly_chart(fig_supply_demand, use_container_width=True, key="supply_demand_treemap")
+    render_plotly_chart(fig_supply_demand, key="supply_demand_treemap", height=560)
 
     # Hidden Demand Quadrant Analysis
     st.markdown('#### The "Hidden Demand"')
@@ -145,4 +146,4 @@ def render(df):
         fig_hidden.add_vline(x=median_vac, line_dash="dash", line_color="gray",
                              annotation_text=f"Median Vacancies: {median_vac:.0f}")
         fig_hidden.update_layout(height=600)
-        st.plotly_chart(fig_hidden, use_container_width=True, key="hidden_demand_chart")
+        render_plotly_chart(fig_hidden, key="hidden_demand_chart")
