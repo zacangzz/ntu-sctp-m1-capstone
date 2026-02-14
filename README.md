@@ -16,11 +16,11 @@ This README compiles information about this project and my learnings w.r.t. the 
         * post-exploded categories
         * pre-explode categories with skills
     * other files are source files and file from skillsfuture
-* ```notebooks/*.ipynb```, jupyter notebook for testing out graphs and commands etc.
+* ```notebooks/*.ipynb```, jupyter notebook for testing out graphs and commands etc. with 1 contribution from team members
     * ```-eda.ipynb```, file that generated the cleaned parquet dfs
     * ```-ed-ml.ipynb```, can ignore, first trial for generating skillslist
     * ```analysis.ipynb```, comprehensive skills analysis dashboard with visualizations
-* ```scripts/ ```, test scripts
+* ```scripts/ ```, test scripts, contribution from team members
 * ```streamlit```, main source code for streamlit application hosting
 
 ### Data Source
@@ -66,6 +66,7 @@ uv is a Python environment manager. To set up the environment, run the following
 3. Capping average_salary column using Log-IQR concept, this caps upper bound at 19783.0, lower bound at 1110.0
     * problem with this is that data is already flawed, small numbers indicate user behaviour where they choose not to fill in salary, large numbers can be for the same reason or mistaking the field for 'annual' salary.
 4. matching of job title posted to job titles from SkillsFuture list of jobs and skills
+   * the current data point is not enough
     * not a fool proof 100% match, for e.g. "Driver" is matched to "Engine Driver" which is wrong, the correct match should be "Transport Operator", the matching process uses sentence transformer to get closest possible match however cultural semantics are lost in this 'translation'.
     * first try was abandoned, where an LLM is used to perform one-shot inference, the data is minimally cleaned and then combined with company name to provide even more context in the hopes of the llm being able to generate a better list of 'top skills', however, the generated list of skills follow no taxonomy so there is no standard and no consistetncy for proper analysis. using a governement approved taxonomy is better sense.
 

@@ -1,6 +1,12 @@
 # Streamlit Dashboard
 
-Interactive dashboard analyzing ~1M Singapore job postings to inform curriculum design decisions.
+Interactive dashboard analyzing ~1M Singapore job postings to inform curriculum design decisions. Dashboard design parameters:
+
+Business Objectives: Enable educators and training providers to understand current job and sector demand, and to identify areas of potential skill and workforce growth using labour-market data.
+
+Target User: Education institutions and professional training providers responsible for curriculum design, program planning, and workforce-relevant training outcomes.
+
+Business Value Proposition: Enable education institutions and training providers to distinguish between in-demand and emerging skills, reducing job–training mismatch by providing clear visibility into current employment demand and growth sectors for informed educational planning
 
 ## How to Run
 
